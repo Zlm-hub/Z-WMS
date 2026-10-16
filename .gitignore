@@ -1,0 +1,24 @@
+# .NET 构建产物
+[Bb]in/
+[Oo]bj/
+*.user
+scaffold/backend/wms-scaffold.db
+
+# Node / 前端构建产物
+node_modules/
+dist/
+*.tsbuildinfo
+frontend-v2/vite.config.ts.timestamp-*
+
+# IDE / OS
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 运行时数据库（种子库除外——rebuild/seed/wms.db 必须入库）
+*.db
+*.db-shm
+*.db-wal
+!rebuild/seed/wms.db

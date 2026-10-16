@@ -1,0 +1,68 @@
+services:
+  backend:
+    image: modernwms-backend:latest
+    container_name: modernwms-backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-20011}:20011"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=${ASPNETCORE_ENVIRONMENT:-Production}
+      # 数据库类型：SqlLite（默认，零初始化）| MySql（需启用下方 mysql 服务段）
+      - Database__db=${WMS_DB_TYPE:-SqlLite}
+      - ConnectionStrings__SqlLiteConn=Data Source=/app/data/wms.db
+      - ConnectionStrings__MySqlConn=${WMS_MYSQL_CONN:-Server=mysql;Database=wms;Port=3306;charset=utf8;uid=root;pwd=modernwms;}
+      # JWT 签名密钥（安全修复：生产环境务必改成自己的随机长字符串，见 .env.example）
+      - WMS_JWT_SIGNINGKEY=${WMS_JWT_SIGNINGKEY:-wms-2026-secure-key-8f4e2a91c7d5b3e6a0f9d8c7b2e4a6f1d3c5e7b9a2f4d6c8e0b2a4f6d8c1e3a5}
+      # Hangfire 面板 Basic 认证（不设置则仅允许容器本机访问）
+      - WMS_HANGFIRE_USER=${WMS_HANGFIRE_USER:-admin}
+      - WMS_HANGFIRE_PASS=${WMS_HANGFIRE_PASS:-hangfire2026}
+    volumes:
+      - wms-data:/app/data
+    # 切 MySql 时取消注释
+    # depends_on:
+    #   mysql:
+    #     condition: service_healthy
+
+  frontend:
+    image: modernwms-frontend:latest
+    container_name: modernwms-frontend
+    restart: unless-stopped
+    ports:
+      # 本机 80 常被已有 Apache/IIS 占用，默认映射 8080；无冲突可改回 "80:80"
+      - "${FRONTEND_V1_PORT:-8080}:80"
+    depends_on:
+      - backend
+
+  # 前端 v2（Vue3 + Naive UI 重做版）
+  frontend-v2:
+    image: modernwms-frontend-v2:latest
+    container_name: modernwms-frontend-v2
+    restart: unless-stopped
+    build:
+      context: ../frontend-v2
+      dockerfile: Dockerfile
+    ports:
+      - "${FRONTEND_V2_PORT:-8081}:80"
+    depends_on:
+      - backend
+
+  # 可选：MySQL 8（默认不启用；切 MySql 时取消本段与 backend depends_on 注释，
+  # 并先建表——原项目无 EF 迁移、启动不自动建表，见启动指南）
+  # mysql:
+  #   image: mysql:8.0
+  #   container_name: modernwms-mysql
+  #   restart: unless-stopped
+  #   environment:
+  #     - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD:-modernwms}
+  #     - MYSQL_DATABASE=wms
+  #   volumes:
+  #     - mysql-data:/var/lib/mysql
+  #   healthcheck:
+  #     test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-modernwms}"]
+  #     interval: 5s
+  #     timeout: 3s
+  #     retries: 20
+
+volumes:
+  wms-data:
+  # mysql-data:
