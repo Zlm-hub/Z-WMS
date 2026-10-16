@@ -14,8 +14,8 @@
 ## 使用
 
 ```bash
-cd ModernWMS-逆向工程/rebuild
-bash deploy.sh          # 构建两个镜像并启动（构建上下文自动定位到 ModernWMS 仓库）
+cd Z-WMS/rebuild（仓库根下的 rebuild/）
+bash deploy.sh          # 构建两个镜像并启动（构建上下文 = 仓库根，backend/frontend 均在仓库内）
 ```
 
 - 前端：http://localhost:8080 （默认账号 `admin / 1`；本机 80 被其它服务占用时用 8080，无冲突可改回 compose 里的 "80:80"）
@@ -60,6 +60,12 @@ docker compose up -d
 
 1. 取消 `docker-compose.yml` 里 mysql 服务和 backend 的 MySQL 环境变量注释；
 2. **先建表**：原项目没有 EF 迁移、启动也不会自动建表（`EnsureCreated` 未被调用），需在容器里执行一次建表，或用官方文档的 SQL 脚本导入 `wms` 库。
+
+## 镜像重建说明（国内网络）
+
+- `backend`（mcr.microsoft.com 基础镜像）与 `frontend-v2`（nginx:latest）本地可正常重建，已验证；
+- `frontend`（v1）需要从 Docker Hub 拉 `node:16-bullseye`，国内直连常报 `auth.docker.io Bad Gateway`——v1 为冻结的上游参考代码，拉不动时保留现有镜像即可，不影响 backend 与 frontend-v2；
+- 首次 clone 后若本地无任何镜像，先跑 `docker pull nginx:latest` 与 backend 构建，v1 可跳过（compose 里 v1 服务注释掉即可）。
 
 ## 文件说明
 
