@@ -30,6 +30,18 @@ bash deploy.sh
 
 环境要求与源码运行方式见 `docs/环境配置与启动指南.md`。
 
+## 运行截图
+
+| 登录 | 工作台 |
+|:---:|:---:|
+| ![登录](docs/login.png) | ![工作台](docs/final_home.png) |
+| **收货管理（入库全流程）** | **统计分析** |
+| ![收货管理](docs/asn.png) | ![统计分析](docs/stats.png) |
+| **数据大屏** | **3D 库房** |
+| ![数据大屏](docs/large-screen.png) | ![3D 库房](docs/vwms.png) |
+
+> 均为 frontend-v2 真实运行截图（CDP 真浏览器捕获，数据来自容器内真实接口）。
+
 ## Git 开发流程（严格遵守）
 
 分支模型：
