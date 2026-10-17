@@ -38,6 +38,20 @@ export const update = <T,>(path: string, data: unknown) =>
 export const remove = (path: string, id: number) =>
   request<string>({ url: path, method: 'DELETE', params: { id } })
 
+/**
+ * 后端只有 /all（全量、无分页）的模块：包装成 CrudPage 需要的 { rows, total }
+ * userrole / category 等控制器未提供 list 分页接口（与原版一致，前端侧适配）
+ */
+export const listFromAll = <T,>(path: string, nameKey: string) =>
+  async (b: PageSearch = {}): Promise<PageData<T>> => {
+    const all = await request<T[]>({ url: path, method: 'GET' })
+    const kw = (b.searchValue || '').trim().toLowerCase()
+    const rows = kw
+      ? all.filter((r) => String((r as Record<string, unknown>)[nameKey] ?? '').toLowerCase().includes(kw))
+      : all
+    return { rows, total: rows.length }
+  }
+
 // ---------- 认证 ----------
 export const authApi = {
   login: (user_name: string, password: string) =>
@@ -81,7 +95,7 @@ export const spuApi = {
   saveSafetyStock: (d: unknown) => update<unknown>('/spu/sku-safety-stock', d)
 }
 export const categoryApi = {
-  list: (b: PageSearch) => list<Record<string, unknown>>('/category/list', b),
+  list: listFromAll<Record<string, unknown>>('/category/all', 'category_name'),
   all: () => request<Array<Record<string, unknown>>>({ url: '/category/all', method: 'GET' }),
   get: (id: number) => getOne<Record<string, unknown>>('/category', id),
   create: (d: unknown) => create<number>('/category', d),
@@ -162,7 +176,7 @@ export const userApi = {
   changePwd: (d: unknown) => request<string>({ url: '/user/change-pwd', method: 'POST', data: d })
 }
 export const userroleApi = {
-  list: (b: PageSearch) => list<Record<string, unknown>>('/userrole/list', b),
+  list: listFromAll<Record<string, unknown>>('/userrole/all', 'role_name'),
   all: () => request<Array<Record<string, unknown>>>({ url: '/userrole/all', method: 'GET' }),
   get: (id: number) => getOne<Record<string, unknown>>('/userrole', id),
   create: (d: unknown) => create<number>('/userrole', d),
