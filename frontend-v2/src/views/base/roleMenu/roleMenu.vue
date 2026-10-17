@@ -33,6 +33,8 @@
 import { onMounted, ref } from 'vue'
 import { NCard, NSelect, NButton, NTree, NEmpty, NSpace, createDiscreteApi } from 'naive-ui'
 import { menuApi, userroleApi } from '@/api'
+import { MODULE_LABELS } from '@/router/dynamic'
+import { menuLabel } from '@/constants/menuNames'
 
 const { message } = createDiscreteApi(['message'])
 const roleOptions = ref<Array<{ label: string; value: number }>>([])
@@ -46,14 +48,14 @@ onMounted(async () => {
   try {
     const roles = await userroleApi.all()
     roleOptions.value = roles.map((r: any) => ({ label: r.role_name, value: r.id }))
-    const menus = await menuApi.all()
+    const menus = await menuApi.menus()
     // 按 module 分组成树
     const groups = new Map<string, any[]>()
     for (const m of menus as any[]) {
-      menuNameMap.value[m.id] = m.menu_name
-      const mod = m.module || '其他'
+      menuNameMap.value[m.id] = menuLabel(m.menu_name)
+      const mod = MODULE_LABELS[m.module as string] || m.module || '其他'
       if (!groups.has(mod)) groups.set(mod, [])
-      groups.get(mod)!.push({ key: m.id, label: m.menu_name })
+      groups.get(mod)!.push({ key: m.id, label: menuLabel(m.menu_name) })
     }
     let gid = 100000
     menuTree.value = Array.from(groups.entries()).map(([mod, children]) => ({
