@@ -3,8 +3,13 @@
 </template>
 
 <script setup lang="ts">
+import { h } from 'vue'
+import { NTag } from 'naive-ui'
 import CrudPage from '@/components/CrudPage.vue'
 import { categoryApi } from '@/api'
+
+// 字段以后端 CategoryViewModel 契约为准：category_name/parent_id/is_valid/create_time
+//（原 category_num/category_parent/describe 后端不存在，已移除；is_valid 补上，与 userRoleSetting 一致）
 
 const api = {
   list: async (b: any) => {
@@ -20,14 +25,17 @@ const api = {
 
 const columns = [
   { title: '类别名称', key: 'category_name' },
-  { title: '类别编号', key: 'category_num' },
-  { title: '父类别', key: 'category_parent' },
-  { title: '描述', key: 'describe', ellipsis: { tooltip: true } }
+  {
+    title: '状态',
+    key: 'is_valid',
+    render: (r: any) =>
+      h(NTag, { size: 'small', type: r.is_valid ? 'success' : 'error' }, { default: () => (r.is_valid ? '启用' : '禁用') })
+  },
+  { title: '创建时间', key: 'create_time' }
 ]
 
 const fields = [
   { key: 'category_name', label: '类别名称', required: true },
-  { key: 'category_num', label: '类别编号' },
-  { key: 'describe', label: '描述', type: 'textarea' as const, span: 2 }
+  { key: 'is_valid', label: '是否启用', type: 'switch' as const }
 ]
 </script>

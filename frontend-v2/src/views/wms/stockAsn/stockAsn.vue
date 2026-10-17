@@ -397,7 +397,8 @@ onMounted(async () => {
     const owners = await ownerApi.all()
     ownerOptions.value = owners.map((o: any) => ({ label: o.goods_owner_name, value: o.id }))
     const users = await selectApi.users()
-    userOptions.value = users.map((u: any) => ({ label: u.user_name, value: u.id }))
+    // /user/select-item 返回 FormSelectItem {code,comments,name,value}，用户名字段是 name
+    userOptions.value = users.map((u: any) => ({ label: u.name, value: u.id }))
     // SKU 下拉：用 stock sku-select 或 spu list；这里取 spu 列表展开
     const spus = await http.post('/spu/list', pageSearch({ pageIndex: 1, pageSize: 500 }))
     const skuList: any[] = []

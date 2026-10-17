@@ -33,7 +33,6 @@ const columns = [
   { title: '用户名', key: 'user_name' },
   { title: '角色', key: 'user_role', render: (r: any) => toRoleTag(r.user_role) },
   { title: '性别', key: 'sex' },
-  { title: '邮箱', key: 'email', ellipsis: { tooltip: true } },
   { title: '联系电话', key: 'contact_tel' },
   { title: '创建人', key: 'creator' }
 ]
@@ -46,7 +45,6 @@ const fields = [
     { label: 'user', value: 'user' }
   ] },
   { key: 'sex', label: '性别', type: 'select' as const, options: [{ label: '男', value: 'male' }, { label: '女', value: 'female' }] },
-  { key: 'email', label: '邮箱' },
   { key: 'contact_tel', label: '联系电话' }
 ]
 

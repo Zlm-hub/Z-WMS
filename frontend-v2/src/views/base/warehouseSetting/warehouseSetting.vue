@@ -56,10 +56,24 @@ import { warehouseApi, areaApi, locationApi, selectApi } from '@/api'
 const warehouseOptions = ref<Array<{ label: string; value: number }>>([])
 const areaOptions = ref<Array<{ label: string; value: number }>>([])
 
+// 库区属性：后端 area_property 为字节，取值与原版前端 AreaProperty 枚举一致（1-6）
+const AREA_PROPERTY_OPTIONS = [
+  { label: '拣货区', value: 1 },
+  { label: '存储区', value: 2 },
+  { label: '收货区', value: 3 },
+  { label: '退货区', value: 4 },
+  { label: '不良品区', value: 5 },
+  { label: '盘点区', value: 6 }
+]
+const AREA_PROPERTY_LABELS: Record<number, string> = {
+  1: '拣货区', 2: '存储区', 3: '收货区', 4: '退货区', 5: '不良品区', 6: '盘点区'
+}
+
 onMounted(async () => {
   try {
     const ws = await selectApi.warehouses()
-    warehouseOptions.value = ws.map((w: any) => ({ label: w.warehouse_name, value: w.id }))
+    // /warehouse/select-item 返回 FormSelectItem {code,comments,name,value}，名称字段是 name
+    warehouseOptions.value = ws.map((w: any) => ({ label: w.name, value: w.id }))
   } catch {
     warehouseOptions.value = []
   }
@@ -69,7 +83,8 @@ async function refreshAreas(warehouseId: number | null) {
   if (!warehouseId) { areaOptions.value = []; return }
   try {
     const as = await selectApi.areasByWarehouse(warehouseId)
-    areaOptions.value = as.map((a: any) => ({ label: a.warehouse_area_name, value: a.id }))
+    // /warehousearea/areas-by-warehouse_id 同样返回 FormSelectItem，名称字段是 name
+    areaOptions.value = as.map((a: any) => ({ label: a.name, value: a.id }))
   } catch {
     areaOptions.value = []
   }
@@ -91,23 +106,22 @@ const whFields = [
   { key: 'email', label: '邮箱' }
 ]
 
+// 库区层字段以后端 WarehouseareaViewModel 契约为准：
+// warehouse_id/warehouse_name/area_name/area_property（原 warehouse_area_name/warehouse_area_property/describe 后端不存在）
 const areaColumns = [
   { title: '所属仓库', key: 'warehouse_name' },
-  { title: '库区名称', key: 'warehouse_area_name' },
-  { title: '库区属性', key: 'warehouse_area_property' },
-  { title: '描述', key: 'describe', ellipsis: { tooltip: true } }
+  { title: '库区名称', key: 'area_name' },
+  {
+    title: '库区属性',
+    key: 'area_property',
+    render: (r: any) => AREA_PROPERTY_LABELS[r.area_property] || '-'
+  }
 ]
 const areaFields = computed(() => [
   { key: 'warehouse_id', label: '所属仓库', type: 'select' as const, required: true, options: warehouseOptions.value },
   { key: 'warehouse_name', label: '仓库名称', required: true },
-  { key: 'warehouse_area_name', label: '库区名称', required: true },
-  { key: 'warehouse_area_property', label: '库区属性', type: 'select' as const, options: [
-    { label: '存储区', value: 'storage_area' },
-    { label: '拣货区', value: 'picking_area' },
-    { label: '暂存区', value: 'temp_area' },
-    { label: '退货区', value: 'return_area' }
-  ] },
-  { key: 'describe', label: '描述', type: 'textarea' as const, span: 2 }
+  { key: 'area_name', label: '库区名称', required: true },
+  { key: 'area_property', label: '库区属性', type: 'select' as const, options: AREA_PROPERTY_OPTIONS }
 ])
 
 const locColumns = [
