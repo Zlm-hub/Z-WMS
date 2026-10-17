@@ -1,5 +1,5 @@
 <template>
-  <CrudPage :api="api" :columns="columns" :fields="fields" search-placeholder="客户名称/编号" />
+  <CrudPage :api="api" :columns="columns" :fields="fields" search-placeholder="客户名称" />
 </template>
 
 <script setup lang="ts">
@@ -13,10 +13,11 @@ const api = {
   remove: customerApi.remove
 }
 
+// 字段以后端 CustomerViewModel 契约为准：customer_name/manager/contact_tel/email/city/address
+//（原 customer_num 后端不存在；联系人字段名为 manager 而非 contact_people）
 const columns = [
-  { title: '客户编号', key: 'customer_num' },
   { title: '客户名称', key: 'customer_name' },
-  { title: '联系人', key: 'contact_people' },
+  { title: '联系人', key: 'manager' },
   { title: '联系电话', key: 'contact_tel' },
   { title: '邮箱', key: 'email', ellipsis: { tooltip: true } },
   { title: '城市', key: 'city' },
@@ -24,9 +25,8 @@ const columns = [
 ]
 
 const fields = [
-  { key: 'customer_num', label: '客户编号' },
   { key: 'customer_name', label: '客户名称', required: true },
-  { key: 'contact_people', label: '联系人' },
+  { key: 'manager', label: '联系人' },
   { key: 'contact_tel', label: '联系电话' },
   { key: 'email', label: '邮箱' },
   { key: 'city', label: '城市' },
