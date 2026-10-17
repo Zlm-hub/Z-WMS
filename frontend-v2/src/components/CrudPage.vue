@@ -188,6 +188,8 @@ function openEdit(row: any) {
   for (const f of props.fields) {
     formModel[f.key] = data[f.key] ?? (f.type === 'switch' ? false : f.type === 'number' ? 0 : '')
   }
+  // id 不在 fields 声明里，但更新必须带上主键，否则后端无法定位记录
+  if (data?.id !== undefined) formModel.id = data.id
   showModal.value = true
 }
 
