@@ -66,7 +66,7 @@ export function setupDynamicRoutes(router: Router) {
       menuStore.loaded = true
       for (const m of menus) {
         const r = menuToRoute(m)
-        if (!router.hasRoute(r.name)) router.addRoute('/', r)
+        if (!router.hasRoute(r.name)) router.addRoute('console', r)
       }
       return to.fullPath // 重新导航以命中新注册的动态路�?
     } catch {

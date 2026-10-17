@@ -14,6 +14,7 @@ const router = createRouter({
     { path: '/vwms', name: 'vwms', meta: { title: '3D 库房' }, component: () => import('@/views/vwms/VwmsView.vue') },
     {
       path: '/',
+      name: 'console',
       component: () => import('@/layouts/ConsoleLayout.vue'),
       children: [
         { path: '', redirect: '/home' },
