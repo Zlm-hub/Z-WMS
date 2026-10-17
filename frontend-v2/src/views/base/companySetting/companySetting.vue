@@ -21,21 +21,21 @@ const api = {
   }
 }
 
+// 字段以后端 CompanyViewModel 契约为准：company_name/city/address/manager/contact_tel
+// （原 company_telephone/company_email/corporate_name/remarks 后端不存在，已移除）
 const columns = [
   { title: '公司名称', key: 'company_name' },
-  { title: '公司电话', key: 'company_telephone' },
-  { title: '公司邮箱', key: 'company_email' },
-  { title: '法人', key: 'corporate_name' },
-  { title: '地址', key: 'company_address', ellipsis: { tooltip: true } },
-  { title: '备注', key: 'remarks', ellipsis: { tooltip: true } }
+  { title: '城市', key: 'city' },
+  { title: '地址', key: 'address', ellipsis: { tooltip: true } },
+  { title: '负责人', key: 'manager' },
+  { title: '联系电话', key: 'contact_tel' }
 ]
 
 const fields = [
   { key: 'company_name', label: '公司名称', required: true },
-  { key: 'company_telephone', label: '公司电话' },
-  { key: 'company_email', label: '公司邮箱' },
-  { key: 'corporate_name', label: '法人' },
-  { key: 'company_address', label: '公司地址', span: 2 },
-  { key: 'remarks', label: '备注', type: 'textarea' as const, span: 2 }
+  { key: 'city', label: '城市' },
+  { key: 'address', label: '地址', span: 2 },
+  { key: 'manager', label: '负责人' },
+  { key: 'contact_tel', label: '联系电话' }
 ]
 </script>

@@ -1,5 +1,5 @@
 <template>
-  <CrudPage :api="api" :columns="columns" :fields="fields" search-placeholder="运费名称/目的地" />
+  <CrudPage :api="api" :columns="columns" :fields="fields" search-placeholder="承运商/城市" />
 </template>
 
 <script setup lang="ts">
@@ -13,22 +13,25 @@ const api = {
   remove: freightApi.remove
 }
 
+// 字段以后端 FreightfeeViewModel 契约为准：carrier/departure_city/arrival_city/
+// price_per_weight/price_per_volume/min_payment
+// （原 freight_name/destination/first_heavy_*/continued_heavy_* 后端不存在，已移除）
 const columns = [
-  { title: '运费名称', key: 'freight_name' },
-  { title: '目的地', key: 'destination' },
-  { title: '首重运费', key: 'first_heavy_freight' },
-  { title: '首重重量', key: 'first_heavy_weight' },
-  { title: '续重运费', key: 'continued_heavy_freight' },
-  { title: '续重重量', key: 'continued_heavy_weight' },
+  { title: '承运商', key: 'carrier' },
+  { title: '出发城市', key: 'departure_city' },
+  { title: '到达城市', key: 'arrival_city' },
+  { title: '每公斤运费', key: 'price_per_weight' },
+  { title: '每立方米运费', key: 'price_per_volume' },
+  { title: '最低消费', key: 'min_payment' },
   { title: '创建人', key: 'creator' }
 ]
 
 const fields = [
-  { key: 'freight_name', label: '运费名称', required: true },
-  { key: 'destination', label: '目的地', required: true },
-  { key: 'first_heavy_freight', label: '首重运费', type: 'number' as const, defaultValue: 0 },
-  { key: 'first_heavy_weight', label: '首重重量', type: 'number' as const, defaultValue: 0 },
-  { key: 'continued_heavy_freight', label: '续重运费', type: 'number' as const, defaultValue: 0 },
-  { key: 'continued_heavy_weight', label: '续重重量', type: 'number' as const, defaultValue: 0 }
+  { key: 'carrier', label: '承运商', required: true },
+  { key: 'departure_city', label: '出发城市' },
+  { key: 'arrival_city', label: '到达城市' },
+  { key: 'price_per_weight', label: '每公斤运费', type: 'number' as const, defaultValue: 0 },
+  { key: 'price_per_volume', label: '每立方米运费', type: 'number' as const, defaultValue: 0 },
+  { key: 'min_payment', label: '最低消费', type: 'number' as const, defaultValue: 0 }
 ]
 </script>
