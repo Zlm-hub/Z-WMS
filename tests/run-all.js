@@ -19,7 +19,8 @@ const ALL = {
   s3: './suites/s3_crud.js',
   s4: './suites/s4_inbound.js',
   s5: './suites/s5_warehouse.js',
-  s6: './suites/s6_dispatch.js'
+  s6: './suites/s6_dispatch.js',
+  s7: './suites/s7_cancel.js'
 }
 
 async function main() {
