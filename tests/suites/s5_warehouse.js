@@ -42,8 +42,20 @@ module.exports = async function run(ctx) {
   {
     await ui.gotoPage('#/warehouseMove')
     const locs = await api.locations()
-    const dest = locs.find((l) => l.id !== 1) // A-01-02
-    if (!dest) report.abort(S, 'move-setup', '需要第二个库位')
+    let dest = locs.find((l) => l.id !== 1) // A-01-02
+    if (!dest) {
+      // 全新种子库只有 1 个库位：自建第二个（仅 location_name 有唯一约束）
+      const d = await api.req('POST', '/goodslocation', {
+        warehouse_id: 1, warehouse_name: '烟测仓', warehouse_area_id: 0,
+        warehouse_area_name: 'A-01', warehouse_area_property: 0,
+        location_name: 'A-01-RT', location_length: 10, location_width: 10,
+        location_heigth: 10, location_volume: 1000, location_load: 100,
+        roadway_number: '', shelf_number: '', is_valid: true
+      })
+      if (!d.isSuccess) report.abort(S, 'move-setup', 'seed 只有 1 个库位且自建失败: ' + d.errorMessage)
+      dest = (await api.locations()).find((l) => l.location_name === 'A-01-RT')
+      report.step(S, 'move-setup/seed-loc', !!dest, '自建第二库位 A-01-RT')
+    }
 
     for (const [destId, destName, leg] of [[dest.id, dest.location_name, 'go'], [1, 'A-01-01', 'back']]) {
       await ui.clickText('body', '新建移库', false)
