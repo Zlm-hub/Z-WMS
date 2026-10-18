@@ -239,7 +239,10 @@ export const stockprocessApi = {
 export const stocktakingApi = {
   list: (b: PageSearch) => list<Record<string, unknown>>('/stocktaking/list', b),
   get: (id: number) => getOne<Record<string, unknown>>('/stocktaking', id),
+  // 建单只收账面信息（StocktakingBasicViewModel 无 counted_qty/difference_qty 字段，发了也被丢弃）
   create: (d: unknown) => create<number>('/stocktaking', d),
+  // 录实盘数：PUT 收 {id, counted_qty}（StocktakingConfirmViewModel），
+  // 后端同时置 difference_qty=counted-book_qty 并翻 job_status=true
   update: (d: unknown) => update<unknown>('/stocktaking', d),
   remove: (id: number) => remove('/stocktaking', id),
   // adjustment-confirm 收单个 int id（查询串），不是数组 body
