@@ -94,7 +94,6 @@ module.exports = async function run(ctx) {
   await ui.clickDialog('确认', true)
   await sleep(cfg.postWait)
   const st2 = await waitStatus(td.tag, '待拣货')
-  const pickList = await api.call('GET', `/dispatchlist/pick-list?id=0&dispatch_no=`, undefined, '').catch(() => null)
   const dRow = await api.req('POST', '/dispatchlist/list', { pageIndex: 1, pageSize: 20, sqlTitle: '', searchValue: td.tag })
   const row2 = (dRow.data?.rows || []).find((r) => String(r.sku_id) === String(skuId) && r.dispatch_status === 2)
   rec('confirm-order', st2 === '待拣货' && !!row2 && row2.lock_qty === 1,

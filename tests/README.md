@@ -9,7 +9,7 @@
 前置：backend(:20011) 与 frontend-v2(:8081) 已启动。
 
 ```bash
-node run-all.js          # 全部 6 个套件
+node run-all.js          # 全部 7 个套件
 node run-all.js s1 s3    # 只跑指定套件（s5 依赖 s4，须同跑；s6 自建数据可单跑）
 ```
 
@@ -26,6 +26,7 @@ node run-all.js s1 s3    # 只跑指定套件（s5 依赖 s4，须同跑；s6 �
 | s4_inbound | SPU→ASN→confirm→unload→sorting→sorted→putaway×4 建测试库存（复用 lib/inbound.js） | API |
 | s5_warehouse | 冻结/解冻、移库 A→B→A、盘点零差异、加工三步 + 盘点清零自清洁 | UI+API |
 | s6_dispatch | 出库 7 态 round-trip：新建(0)→确认订单(2 锁库)→拣货(3)→打包(4)→称重(5)→发运(6 扣库存)→签收(7)；自建 1 条 qty=1 库存被出库消耗，无残留 | UI+API |
+| s7_cancel | 出库取消/回滚链路：锁定释放（确认订单→取消→库存回池+拣货单删除）、逐级回退（打包→取消→拣货→取消→锁定→取消→删整单）、取消零流水断言 | API |
 
 ## 测试数据策略（自给自足 + 自清洁）
 

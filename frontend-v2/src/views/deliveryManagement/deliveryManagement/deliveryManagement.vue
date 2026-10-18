@@ -81,7 +81,7 @@ const { message, dialog } = createDiscreteApi(['message', 'dialog'])
 // → 4 打包 → 5 称重 → 6 发运(扣库存) → 7 签收；1 为库存不足时 confirm-order 拆分出的缺货行
 const STATUS: Record<number, { text: string; type: 'default' | 'info' | 'warning' | 'success' | 'error' }> = {
   0: { text: '新订单', type: 'default' },
-  1: { text: '缺货拆分', type: 'error' },
+  1: { text: '待确认', type: 'info' },
   2: { text: '待拣货', type: 'info' },
   3: { text: '待打包', type: 'warning' },
   4: { text: '待称重', type: 'warning' },
@@ -221,7 +221,9 @@ async function cancelOrder(row: any) {
     positiveText: '取消订单', negativeText: '返回',
     onPositiveClick: async () => {
       try {
-        await dispatchApi.cancelOrder([{ id: row.id, dispatch_no: row.dispatch_no, dispatch_status: row.dispatch_status }])
+        // 新订单（status 0）取消 = 删除整单：DELETE /dispatchlist?dispatch_no=
+        // 原调的 PUT cancel-order?id= 是「取消打包/称重明细」，收单个 id，整单取消用它是错的
+        await dispatchApi.removeByNo(row.dispatch_no)
         message.success('已取消')
         reload()
       } catch (e) {
