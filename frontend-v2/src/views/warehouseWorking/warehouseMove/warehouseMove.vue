@@ -53,6 +53,9 @@ const destMap = ref<Record<number, any>>({})
 
 const form = reactive({ stock_id: null as number | null, dest_location_id: null as number | null, qty: 1 })
 
+// QueryTable 数据源（勿删：QueryTable props.fetch 必需，缺失会导致表格无法加载）
+const fetch = (b: any) => stockmoveApi.list(b)
+
 // StockmoveViewModel 字段：job_code/move_status(0未调整,1已调整)/orig_goods_warehouse/
 // orig_goods_location_name/dest_googs_warehouse/dest_googs_location_name（后端拼写 googs）/qty/
 // spu_code/spu_name/sku_code/sku_name/creator/create_time
@@ -91,10 +94,24 @@ function onStockPicked() {
   form.qty = p?.qty_available ?? 1
 }
 
-function openCreate() {
+async function openCreate() {
   form.stock_id = null
   form.dest_location_id = null
   form.qty = 1
+  // 打开弹窗时重拉来源库存：移库确认后库存行的库位即时变化，
+  // onMounted 的一次性快照会让连续移库（A→B→A）的移出库位指向旧位置
+  try {
+    const rows2 = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
+    stockMap.value = {}
+    stockOptions.value = []
+    for (const s of rows2) {
+      stockMap.value[s.id] = s
+      stockOptions.value.push({
+        label: `${s.warehouse_name} / ${s.location_name} / ${s.spu_name} / ${s.sku_name}${s.series_number ? `（${s.series_number}）` : ''}`,
+        value: s.id
+      })
+    }
+  } catch { /* 沿用旧快照 */ }
   showModal.value = true
 }
 
@@ -117,7 +134,7 @@ async function save() {
       orig_goods_location_id: s.goods_location_id,
       orig_goods_warehouse: s.warehouse_name,
       orig_goods_location_name: s.location_name,
-      dest_googs_location_id: d.goods_location_id,
+      dest_googs_location_id: d.id,
       dest_googs_warehouse: d.warehouse_name,
       dest_googs_location_name: d.location_name,
       qty: form.qty,
@@ -165,12 +182,13 @@ onMounted(async () => {
         value: s.id
       })
     }
-    // 目标库位：/stock/location-list 按 goods_location_id 去重
-    const locs = ((await http.post('/stock/location-list', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
+    // 目标库位：/goodslocation/all 全量库位（含真实 id）。
+    // 注意：不能用 /stock/location-list——该接口 goods_location_id 恒返回 0（上游 service 未赋值），
+    // 下游 dest_googs_location_id 会拿到 0，后端无法解析目标库位
+    const locs = ((await http.get('/goodslocation/all')).data?.data as any[]) || []
     for (const l of locs) {
-      if (destMap.value[l.goods_location_id]) continue
-      destMap.value[l.goods_location_id] = l
-      destOptions.value.push({ label: `${l.warehouse_name} / ${l.location_name}`, value: l.goods_location_id })
+      destMap.value[l.id] = l
+      destOptions.value.push({ label: `${l.warehouse_name} / ${l.location_name}`, value: l.id })
     }
   } catch { /* 非阻塞 */ }
 })

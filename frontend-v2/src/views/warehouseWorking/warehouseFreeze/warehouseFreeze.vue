@@ -46,7 +46,10 @@ const { message } = createDiscreteApi(['message', 'dialog'])
 const tableRef = ref<InstanceType<typeof QueryTable> | null>(null)
 const showModal = ref(false)
 const saving = ref(false)
-const allStocks = ref<any[]>([])
+// 两类库存源：可用库存（默认过滤 qty_available>0）与已冻结库存（sqlTitle=frozen）
+// 冻结后 avail=0 会从默认查询消失，解冻弹窗必须查 frozen（与上游 commoditySqlTitle 同机制）
+const availStocks = ref<any[]>([])
+const frozenStocks = ref<any[]>([])
 const stockOptions = ref<Array<{ label: string; value: number }>>([])
 
 // StockfreezeViewModel 字段：job_code/job_type(bool:true冻结,false解冻)/sku_id/goods_owner_id/
@@ -54,18 +57,23 @@ const stockOptions = ref<Array<{ label: string; value: number }>>([])
 //（原 sku_name/goods_location_name/qty/is_freeze/reason/creator 均不存在）
 const form = reactive({ job_type: true, stock_id: null as number | null })
 
-const picked = computed(() => allStocks.value.find((s) => s.id === form.stock_id) || null)
+// QueryTable 数据源（勿删：QueryTable props.fetch 必需，缺失会导致表格无法加载）
+const fetch = (b: any) => stockfreezeApi.list(b)
 
-// 按当前作业类型过滤：冻结→未冻结库存；解冻→已冻结库存
+const picked = computed(() => {
+  const pool = form.job_type ? availStocks.value : frozenStocks.value
+  return pool.find((s) => s.id === form.stock_id) || null
+})
+
+// 按当前作业类型切换库存池：冻结→可用库存；解冻→已冻结库存
 watch(() => form.job_type, () => { form.stock_id = null; refreshOptions() })
 
 function refreshOptions() {
-  stockOptions.value = allStocks.value
-    .filter((s) => (form.job_type ? !s.is_freeze : s.is_freeze))
-    .map((s) => ({
-      label: `${s.warehouse_name} / ${s.location_name} / ${s.spu_name} / ${s.sku_name}${s.series_number ? `（${s.series_number}）` : ''}`,
-      value: s.id
-    }))
+  const pool = form.job_type ? availStocks.value : frozenStocks.value
+  stockOptions.value = pool.map((s) => ({
+    label: `${s.warehouse_name} / ${s.location_name} / ${s.spu_name} / ${s.sku_name}${s.series_number ? `（${s.series_number}）` : ''}`,
+    value: s.id
+  }))
 }
 
 const columns = [
@@ -85,15 +93,27 @@ const columns = [
   { title: '操作时间', key: 'handle_time', width: 160 }
 ]
 
-function openCreate(jobType: boolean) {
+async function openCreate(jobType: boolean) {
   form.job_type = jobType
   form.stock_id = null
+  // 打开弹窗时重拉两池：冻结/解冻会即时改变 is_freeze 归属，
+  // onMounted 的一次性快照会让「冻结完立刻解冻」选不到目标库存
+  try {
+    const [avail, frozen] = await Promise.all([
+      http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' }),
+      http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: 'frozen', searchValue: '' })
+    ])
+    availStocks.value = (avail.data?.data?.rows as any[]) || []
+    frozenStocks.value = (frozen.data?.data?.rows as any[]) || []
+  } catch { /* 沿用旧池 */ }
+  refreshOptions()
   showModal.value = true
 }
 
 async function save() {
   if (!form.stock_id) { message.error('请选择库存'); return }
-  const s = allStocks.value.find((t) => t.id === form.stock_id)
+  const pool = form.job_type ? availStocks.value : frozenStocks.value
+  const s = pool.find((t) => t.id === form.stock_id)
   saving.value = true
   try {
     // 后端 AddAsync 按库存五元组定位 stock 并置 is_freeze=job_type；解冻同样是新建一条 job_type=false 的记录
@@ -122,8 +142,13 @@ async function save() {
 onMounted(async () => {
   try {
     // /stock/select 返回带完整库存身份的行（含 goods_owner_id/is_freeze/series_number）
-    const rows = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
-    allStocks.value = rows
+    // 两类查询：默认 sqlTitle 过滤 qty_available>0（可冻结的）；sqlTitle=frozen 拿已冻结的（解冻用）
+    const [avail, frozen] = await Promise.all([
+      http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' }),
+      http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: 'frozen', searchValue: '' })
+    ])
+    availStocks.value = (avail.data?.data?.rows as any[]) || []
+    frozenStocks.value = (frozen.data?.data?.rows as any[]) || []
     refreshOptions()
   } catch { /* 非阻塞 */ }
 })
