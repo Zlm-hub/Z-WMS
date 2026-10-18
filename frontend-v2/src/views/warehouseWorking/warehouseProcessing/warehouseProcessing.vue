@@ -1,29 +1,32 @@
 <template>
-  <QueryTable ref="tableRef" :fetch="fetch" :columns="columns" search-placeholder="商品/单号">
+  <QueryTable ref="tableRef" :fetch="fetch" :columns="columns" search-placeholder="作业单号">
     <template #toolbar-extra>
       <n-button type="primary" @click="openCreate">+ 新建加工单</n-button>
     </template>
   </QueryTable>
 
-  <n-modal v-model:show="showModal" title="新建加工单" preset="card" style="width: 560px" :mask-closable="false">
-    <n-form label-placement="left" label-width="110">
-      <n-form-item label="加工类型" required>
-        <n-select v-model:value="form.process_type" :options="[
-          { label: '加工（消耗原料产出成品）', value: 'process' },
-          { label: '调整（直接增减库存）', value: 'adjustment' }
-        ]" />
+  <n-modal v-model:show="showModal" title="新建加工单" preset="card" style="width: 860px" :mask-closable="false">
+    <n-form label-placement="left" label-width="100">
+      <n-form-item label="作业类型" required>
+        <n-radio-group v-model:value="form.job_type">
+          <n-radio :value="true">组合加工（消耗原料，产出成品）</n-radio>
+          <n-radio :value="false">拆分加工（拆分来源，产出多个）</n-radio>
+        </n-radio-group>
       </n-form-item>
-      <n-form-item label="商品规格" required>
-        <n-select v-model:value="form.sku_id" filterable :options="skuOptions" placeholder="搜索规格" />
+      <n-form-item label="加工明细" required>
+        <n-data-table
+          :columns="detailCols"
+          :data="form.detailList"
+          :row-key="(r: any) => r._key"
+          size="small"
+          :scroll-x="720"
+          style="width: 100%"
+        />
       </n-form-item>
-      <n-form-item label="库位" required><n-select v-model:value="form.location_id" :options="locationOptions" /></n-form-item>
-      <n-form-item :label="form.process_type === 'process' ? '消耗数量' : '调整数量'" required>
-        <n-input-number v-model:value="form.qty" :min="1" style="width: 100%" />
-      </n-form-item>
-      <n-form-item v-if="form.process_type === 'adjustment'" label="正负（加/减）" required>
-        <n-select v-model:value="form.is_add" :options="[{ label: '增加', value: 1 }, { label: '减少', value: 0 }]" />
-      </n-form-item>
-      <n-form-item label="备注"><n-input v-model:value="form.remarks" type="textarea" :rows="2" /></n-form-item>
+      <n-button dashed block @click="addDetail">+ 添加明细</n-button>
+      <n-alert type="info" style="margin-top: 12px">
+        原料行过账时扣减库存，成品行过账时增加库存；确认加工仅标记状态，确认调整才会过账库存。
+      </n-alert>
     </n-form>
     <template #footer>
       <n-space justify="end">
@@ -36,7 +39,7 @@
 
 <script setup lang="ts">
 import { h, onMounted, reactive, ref } from 'vue'
-import { NButton, NSpace, NModal, NForm, NFormItem, NSelect, NInputNumber, NInput, NTag, createDiscreteApi } from 'naive-ui'
+import { NAlert, NButton, NDataTable, NForm, NFormItem, NInputNumber, NModal, NRadio, NRadioGroup, NSpace, NSelect, NTag, createDiscreteApi, type DataTableColumns } from 'naive-ui'
 import QueryTable from '@/components/QueryTable.vue'
 import { stockprocessApi } from '@/api'
 import http from '@/api/http'
@@ -45,59 +48,155 @@ const { message, dialog } = createDiscreteApi(['message', 'dialog'])
 const tableRef = ref<InstanceType<typeof QueryTable> | null>(null)
 const showModal = ref(false)
 const saving = ref(false)
-const skuOptions = ref<Array<{ label: string; value: number }>>([])
-const locationOptions = ref<Array<{ label: string; value: number }>>([])
+const stockOptions = ref<Array<{ label: string; value: number }>>([])
+const stockMap = ref<Record<number, any>>({})
+let detailKeySeq = 0
 
-const form = reactive({
-  process_type: 'process' as 'process' | 'adjustment',
-  sku_id: null as number | null,
-  location_id: null as number | null,
-  qty: 1,
-  is_add: 1,
-  remarks: ''
-})
-
-const fetch = (b: any) => stockprocessApi.list(b)
+// StockprocessGetViewModel 字段：job_code/job_type(bool:true组合,false拆分)/process_status(bool)/
+// adjust_status(bool)/processor/process_time/creator/create_time
+//（原 process_no/spu_name/sku_name/qty/process_type/remarks 均不存在；商品数量在明细里）
+const form = reactive<{ job_type: boolean; detailList: any[] }>({ job_type: true, detailList: [] })
 
 const columns = [
-  { title: '单号', key: 'process_no', width: 150 },
-  { title: '商品名称', key: 'spu_name', ellipsis: { tooltip: true } },
-  { title: '规格名称', key: 'sku_name', ellipsis: { tooltip: true } },
-  { title: '数量', key: 'qty' },
+  { title: '作业单号', key: 'job_code', width: 150 },
   {
-    title: '类型', key: 'process_type',
-    render: (r: any) => h(NTag, { size: 'small', type: r.process_type === 'process' ? 'info' : 'warning' }, { default: () => (r.process_type === 'process' ? '加工' : '调整') })
+    title: '作业类型',
+    key: 'job_type',
+    render: (r: any) => h(NTag, { size: 'small', type: r.job_type ? 'info' : 'warning' }, { default: () => (r.job_type ? '组合加工' : '拆分加工') })
   },
   {
-    title: '状态', key: 'process_status',
-    render: (r: any) => h(NTag, { size: 'small', type: r.process_status === 1 ? 'success' : 'default' }, { default: () => (r.process_status === 1 ? '已确认' : '待确认') })
+    title: '加工状态',
+    key: 'process_status',
+    render: (r: any) => h(NTag, { size: 'small', type: r.process_status ? 'success' : 'default' }, { default: () => (r.process_status ? '已加工' : '待加工') })
   },
-  { title: '备注', key: 'remarks', ellipsis: { tooltip: true } },
   {
-    title: '操作', key: '__act', width: 110, fixed: 'right',
+    title: '是否已调整',
+    key: 'adjust_status',
+    render: (r: any) => h(NTag, { size: 'small', type: r.adjust_status ? 'success' : 'default' }, { default: () => (r.adjust_status ? '已调整' : '未调整') })
+  },
+  { title: '操作人', key: 'processor' },
+  { title: '操作时间', key: 'process_time', width: 160 },
+  { title: '创建人', key: 'creator' },
+  { title: '创建时间', key: 'create_time', width: 160 },
+  {
+    title: '操作', key: '__act', width: 170, fixed: 'right',
     render(row: any) {
-      if (row.process_status === 1) return null
-      return h(NSpace, { size: 4 }, {
-        default: () => [
-          h(NButton, { size: 'small', quaternary: true, type: 'primary', onClick: () => confirmIt(row) }, {
-            default: () => (row.process_type === 'process' ? '确认加工' : '确认调整')
-          })
-        ]
-      })
+      const btns: any[] = []
+      if (!row.process_status) {
+        btns.push(h(NButton, { size: 'small', quaternary: true, type: 'primary', onClick: () => confirmProcess(row) }, { default: () => '确认加工' }))
+      }
+      if (row.process_status && !row.adjust_status) {
+        btns.push(h(NButton, { size: 'small', quaternary: true, type: 'warning', onClick: () => confirmAdjust(row) }, { default: () => '确认调整过账' }))
+      }
+      return btns.length ? h(NSpace, { size: 4 }, { default: () => btns }) : null
     }
   }
 ]
 
+const detailCols: DataTableColumns = [
+  {
+    title: '库存',
+    key: 'stock_id',
+    width: 300,
+    render: (row: any) =>
+      h(NSelect, {
+        value: row.stock_id,
+        options: stockOptions.value,
+        placeholder: '选择仓库/库位/商品（序列号）',
+        filterable: true,
+        'onUpdate:value': (v: number) => { row.stock_id = v; applyStock(row) }
+      })
+  },
+  {
+    title: '类型',
+    key: 'is_source',
+    width: 130,
+    render: (row: any) =>
+      h(NSelect, {
+        value: row.is_source,
+        options: [{ label: '原料（消耗）', value: true }, { label: '成品（产出）', value: false }],
+        'onUpdate:value': (v: boolean) => { row.is_source = v }
+      })
+  },
+  {
+    title: '数量',
+    key: 'qty',
+    width: 130,
+    render: (row: any) =>
+      h(NInputNumber, {
+        value: row.qty,
+        min: 1,
+        max: row.qty_available ?? undefined,
+        'onUpdate:value': (v: number) => { row.qty = v }
+      })
+  },
+  {
+    title: '操作',
+    key: '_op',
+    width: 70,
+    render: (row: any) =>
+      h(NButton, { size: 'small', quaternary: true, type: 'error', onClick: () => removeDetail(row) }, { default: () => '删除' })
+  }
+]
+
+function applyStock(row: any) {
+  const s = stockMap.value[row.stock_id]
+  if (!s) return
+  row.sku_id = s.sku_id
+  row.goods_owner_id = s.goods_owner_id
+  row.goods_location_id = s.goods_location_id
+  row.series_number = s.series_number
+  row.expiry_date = s.expiry_date
+  row.price = s.price
+  row.putaway_date = s.putaway_date
+  row.qty_available = s.qty_available
+  row.qty = s.qty_available ?? 1
+}
+
+function addDetail() {
+  form.detailList.push({ _key: ++detailKeySeq, stock_id: null, is_source: true, qty: 1 })
+}
+
+function removeDetail(row: any) {
+  form.detailList = form.detailList.filter((d) => d._key !== row._key)
+}
+
 function openCreate() {
-  form.sku_id = null; form.location_id = null; form.qty = 1; form.is_add = 1; form.remarks = ''
+  form.job_type = true
+  form.detailList = [{ _key: ++detailKeySeq, stock_id: null, is_source: true, qty: 1 }, { _key: ++detailKeySeq, stock_id: null, is_source: false, qty: 1 }]
   showModal.value = true
 }
 
 async function save() {
-  if (!form.sku_id || !form.location_id) { message.error('请完整选择规格与库位'); return }
+  if (form.detailList.length < 2) { message.error('至少需要两条明细（原料与成品）'); return }
+  for (const d of form.detailList) {
+    if (!d.stock_id) { message.error('请为每条明细选择库存'); return }
+  }
   saving.value = true
   try {
-    await stockprocessApi.create({ ...form })
+    // 后端 AddAsync 收 StockprocessViewModel：master + detailList，
+    // 明细按库存五元组定位 stock，is_source=true 为消耗、false 为产出
+    await stockprocessApi.create({
+      job_type: form.job_type,
+      detailList: form.detailList.map((d) => {
+        const s = stockMap.value[d.stock_id]
+        return {
+          sku_id: s.sku_id,
+          goods_owner_id: s.goods_owner_id,
+          goods_location_id: s.goods_location_id,
+          series_number: s.series_number,
+          expiry_date: s.expiry_date,
+          price: s.price,
+          putaway_date: s.putaway_date,
+          qty: d.qty,
+          is_source: d.is_source,
+          spu_code: s.spu_code,
+          spu_name: s.spu_name,
+          sku_code: s.sku_code,
+          location_name: s.location_name
+        }
+      })
+    })
     message.success('加工单已创建')
     showModal.value = false
     tableRef.value?.reload()
@@ -108,19 +207,31 @@ async function save() {
   }
 }
 
-function confirmIt(row: any) {
-  const isProcess = row.process_type === 'process'
+function confirmProcess(row: any) {
   dialog.info({
-    title: isProcess ? '确认加工' : '确认调整',
-    content: `确认执行该单据并过账库存？（数量 ${row.qty}）`,
+    title: '确认加工',
+    content: '确认加工仅标记作业状态，不过账库存。确认？',
+    positiveText: '确认', negativeText: '取消',
+    onPositiveClick: async () => {
+      try {
+        await stockprocessApi.processConfirm(row.id)
+        message.success('已确认加工')
+        tableRef.value?.reload()
+      } catch (e) {
+        message.error(e instanceof Error ? e.message : '操作失败')
+      }
+    }
+  })
+}
+
+function confirmAdjust(row: any) {
+  dialog.warning({
+    title: '确认调整过账',
+    content: '将按明细过账库存（原料扣减、成品增加），过账后不可撤销。确认？',
     positiveText: '确认过账', negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        if (isProcess) {
-          await stockprocessApi.processConfirm([{ id: row.id }])
-        } else {
-          await stockprocessApi.adjustConfirm([{ id: row.id }])
-        }
+        await stockprocessApi.adjustConfirm(row.id)
         message.success('已过账')
         tableRef.value?.reload()
       } catch (e) {
@@ -132,19 +243,14 @@ function confirmIt(row: any) {
 
 onMounted(async () => {
   try {
-    const locs = await http.post('/stock/location-list', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })
-    locationOptions.value = ((locs.data?.data?.rows as any[]) || []).map((l: any) => ({
-      label: `${l.warehouse_name || ''} / ${l.location_name}`,
-      value: l.id
-    }))
-    const spus = await http.post('/spu/list', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })
-    for (const s of (spus.data?.data?.rows as any[]) || []) {
-      try {
-        const full = (await http.get('/spu', { params: { id: s.id } })).data?.data
-        for (const d of full?.detailList || []) {
-          skuOptions.value.push({ label: `${s.spu_name} / ${d.sku_name}（${d.sku_code}）`, value: d.id ?? d.sku_id })
-        }
-      } catch { /* skip */ }
+    // /stock/select 返回带完整库存身份的行（含 goods_owner_id/series_number/expiry_date 等）
+    const rows = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
+    for (const s of rows) {
+      stockMap.value[s.id] = s
+      stockOptions.value.push({
+        label: `${s.warehouse_name} / ${s.location_name} / ${s.spu_name} / ${s.sku_name}${s.series_number ? `（${s.series_number}）` : ''}`,
+        value: s.id
+      })
     }
   } catch { /* 非阻塞 */ }
 })

@@ -11,18 +11,25 @@ import { stockadjustApi } from '@/api'
 
 const fetch = (b: any) => stockadjustApi.list(b)
 
+// StockadjustViewModel 字段：job_type(1盘点/2仓内加工/3拆分加工/4移库)/job_code/spu_code/spu_name/
+// sku_code/sku_name/qty(调整差异量，带正负)/warehouse_name/location_name/source_table_id/creator/create_time
+//（原 change_qty/current_qty 后端不存在，qty 即差异量；无"调整后库存"）
+const ADJUST_JOB_TYPES: Record<number, string> = { 1: '盘点', 2: '仓内加工', 3: '仓内加工', 4: '移库' }
+
 const diffTag = (r: any) => {
-  const v = r.change_qty ?? r.adjust_qty ?? 0
+  const v = r.qty ?? 0
   return h(NTag, { size: 'small', type: v >= 0 ? 'success' : 'error' }, { default: () => (v >= 0 ? `+${v}` : String(v)) })
 }
 
 const columns = [
   { title: '商品名称', key: 'spu_name', ellipsis: { tooltip: true } },
   { title: '规格名称', key: 'sku_name', ellipsis: { tooltip: true } },
-  { title: '变动数量', key: 'change_qty', render: diffTag },
-  { title: '调整后库存', key: 'current_qty' },
-  { title: '来源作业', key: 'job_code' },
+  { title: '变动数量', key: 'qty', render: diffTag },
+  { title: '来源作业', key: 'job_type', render: (r: any) => ADJUST_JOB_TYPES[r.job_type] || '-' },
+  { title: '来源单号', key: 'job_code' },
   { title: '来源单据', key: 'source_table_id' },
+  { title: '仓库', key: 'warehouse_name' },
+  { title: '库位', key: 'location_name' },
   { title: '经手人', key: 'creator' },
   { title: '时间', key: 'create_time', width: 160 }
 ]
