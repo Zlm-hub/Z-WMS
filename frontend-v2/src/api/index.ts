@@ -223,15 +223,18 @@ export const stockmoveApi = {
   all: () => request<Array<Record<string, unknown>>>({ url: '/stockmove/all', method: 'GET' }),
   create: (d: unknown) => create<number>('/stockmove', d),
   update: (d: unknown) => update<unknown>('/stockmove', d),
-  remove: (id: number) => remove('/stockmove', id)
+  remove: (id: number) => remove('/stockmove', id),
+  // PUT /stockmove 收单个 int id（查询串），过账移库
+  confirm: (id: number) => request<boolean>({ url: '/stockmove', method: 'PUT', params: { id } })
 }
 export const stockprocessApi = {
   list: (b: PageSearch) => list<Record<string, unknown>>('/stockprocess/list', b),
   create: (d: unknown) => create<number>('/stockprocess', d),
   update: (d: unknown) => update<unknown>('/stockprocess', d),
   remove: (id: number) => remove('/stockprocess', id),
-  processConfirm: (d: unknown) => update<string>('/stockprocess/process-confirm', d),
-  adjustConfirm: (d: unknown) => update<string>('/stockprocess/adjustment-confirm', d)
+  // process-confirm/adjustment-confirm 均收单个 int id（查询串），不是数组 body
+  processConfirm: (id: number) => request<string>({ url: '/stockprocess/process-confirm', method: 'PUT', params: { id } }),
+  adjustConfirm: (id: number) => request<string>({ url: '/stockprocess/adjustment-confirm', method: 'PUT', params: { id } })
 }
 export const stocktakingApi = {
   list: (b: PageSearch) => list<Record<string, unknown>>('/stocktaking/list', b),
@@ -239,7 +242,8 @@ export const stocktakingApi = {
   create: (d: unknown) => create<number>('/stocktaking', d),
   update: (d: unknown) => update<unknown>('/stocktaking', d),
   remove: (id: number) => remove('/stocktaking', id),
-  adjustConfirm: (d: unknown) => update<string>('/stocktaking/adjustment-confirm', d)
+  // adjustment-confirm 收单个 int id（查询串），不是数组 body
+  adjustConfirm: (id: number) => request<string>({ url: '/stocktaking/adjustment-confirm', method: 'PUT', params: { id } })
 }
 
 // ---------- 发货 ----------
