@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net7.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>schemagen</AssemblyName>
+    <!-- 本机只有更高版本 .NET 运行时时可跑 -->
+    <RollForward>LatestMajor</RollForward>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../backend/ModernWMS.Core/ModernWMS.Core.csproj" />
+    <ProjectReference Include="../../../backend/ModernWMS.WMS/ModernWMS.WMS.csproj" />
+  </ItemGroup>
+</Project>

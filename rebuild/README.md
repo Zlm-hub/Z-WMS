@@ -56,10 +56,15 @@ docker compose up -d
 2. node:16 镜像自带 yarn，`npm install -g yarn` 会 EEXIST；
 3. 上游 yarn.lock 与 package.json 不同步（不能 --frozen-lockfile）+ `vue-tsc` 类型检查本身就不过（几百个 $t 报错）→ 直接 `yarn vite build` 跳过类型检查。
 
-## 切 MySQL（可选）
+## 切 MySQL（可选，已实测可用）
 
 1. 取消 `docker-compose.yml` 里 mysql 服务和 backend 的 MySQL 环境变量注释；
-2. **先建表**：原项目没有 EF 迁移、启动也不会自动建表（`EnsureCreated` 未被调用），需在容器里执行一次建表，或用官方文档的 SQL 脚本导入 `wms` 库。
+2. **建库导数据**：原项目没有 EF 迁移、启动也不会自动建表，直接导入仓库自带的两个脚本即可：
+   ```bash
+   mysql -uroot -p wms < seed/mysql_schema.sql   # EF 模型生成的 DDL（35 表）
+   mysql -uroot -p wms < seed/mysql_seed.sql     # 由 SQLite seed 转换的初始数据
+   ```
+   实体模型或 seed 变更后重新生成：`rebuild/tools/schemagen` + `rebuild/tools/seed2mysql.py`（详见 `docs/环境配置与启动指南.md`「四库切换」）。
 
 ## 镜像重建说明（国内网络）
 
