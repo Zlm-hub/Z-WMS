@@ -40,7 +40,8 @@ module.exports = async function run(ctx) {
 
   // ============ 2. 移库 A→B→A（T2，可逆；openCreate 重拉快照支持连续作业） ============
   {
-    await ui.gotoPage('#/warehouseMove')
+    // 前置先备齐第二库位：必须在导航进移库页之前——页面 onMounted 只拉一次库位下拉，
+    // 进页后再建库位不会出现在选项里（CI 首跑暴露）
     const locs = await api.locations()
     let dest = locs.find((l) => l.id !== 1) // A-01-02
     if (!dest) {
@@ -56,6 +57,7 @@ module.exports = async function run(ctx) {
       dest = (await api.locations()).find((l) => l.location_name === 'A-01-RT')
       report.step(S, 'move-setup/seed-loc', !!dest, '自建第二库位 A-01-RT')
     }
+    await ui.gotoPage('#/warehouseMove')
 
     for (const [destId, destName, leg] of [[dest.id, dest.location_name, 'go'], [1, 'A-01-01', 'back']]) {
       await ui.clickText('body', '新建移库', false)
