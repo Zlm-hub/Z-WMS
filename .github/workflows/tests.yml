@@ -70,3 +70,75 @@ jobs:
           path: |
             /tmp/zwms_test_out/
           if-no-files-found: ignore
+
+  # MySQL 档：EF 生成 DDL + seed 转换数据建库，验证四库切换（UI 套件依赖 v2 前端
+  # 写死的 :20011 API 基址，MySQL 后端在 20012，故只跑 API 驱动套件 s1/s4/s7）
+  e2e-mysql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: modernwms
+          MYSQL_DATABASE: wms
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -uroot -pmodernwms"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Build backend image
+        run: docker build -f rebuild/backend.Dockerfile -t modernwms-backend:latest .
+
+      - name: Import MySQL schema + seed
+        run: |
+          docker run --rm --network host -v "$GITHUB_WORKSPACE/rebuild/seed:/seeds" mysql:8.0 \
+            sh -c "mysql -h127.0.0.1 -uroot -pmodernwms --default-character-set=utf8mb4 wms < /seeds/mysql_schema.sql && \
+                   mysql -h127.0.0.1 -uroot -pmodernwms --default-character-set=utf8mb4 wms < /seeds/mysql_seed.sql"
+          docker run --rm --network host mysql:8.0 \
+            mysql -h127.0.0.1 -uroot -pmodernwms wms -e "SELECT COUNT(*) AS menus FROM menu; SELECT COUNT(*) AS users FROM user;"
+
+      - name: Start backend (MySql mode)
+        run: |
+          docker run -d --name backend-mysql \
+            --add-host=host.docker.internal:host-gateway \
+            -p 20012:20011 \
+            -e "Database__db=MySql" \
+            -e "ConnectionStrings__MySqlConn=Server=host.docker.internal;Database=wms;Port=3306;charset=utf8mb4;uid=root;pwd=modernwms;" \
+            -e "WMS_JWT_SIGNINGKEY=ci-mysql-key-8f4e2a91c7d5b3e6a0f9d8c7b2e4a6f1d3c5e7b9a2f4d6c8e0b2a4f6d8c1e3a5" \
+            modernwms-backend:latest
+
+      - name: Wait for API ready
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:20012/login \
+              -H 'Content-Type: application/json' -d '{"user_name":"admin","password":"1"}' || true)
+            if [ "$code" = "200" ]; then echo "API ready"; exit 0; fi
+            sleep 3
+          done
+          echo "::error::mysql backend not ready in 180s"
+          docker logs backend-mysql
+          exit 1
+
+      - name: Run API suites on MySQL
+        env:
+          WMS_API: http://localhost:20012
+        run: node tests/run-all.js s1 s4 s7
+
+      - name: Upload mysql test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-mysql
+          path: |
+            /tmp/zwms_test_out/
+          if-no-files-found: ignore
