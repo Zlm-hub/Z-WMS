@@ -18,7 +18,8 @@ const ALL = {
   s2: './suites/s2_pages.js',
   s3: './suites/s3_crud.js',
   s4: './suites/s4_inbound.js',
-  s5: './suites/s5_warehouse.js'
+  s5: './suites/s5_warehouse.js',
+  s6: './suites/s6_dispatch.js'
 }
 
 async function main() {
@@ -42,7 +43,7 @@ async function main() {
     console.log(`\n----- ${key} -----`)
     try {
       // 需要 UI 的套件：确保浏览器已起 + 已注入登录态（同会话复用）
-      if (['s2', 's3', 's5'].includes(key)) {
+      if (['s2', 's3', 's5', 's6'].includes(key)) {
         if (!b.ws) await b.start()
         await b.loginAndWarm(api.token, cfg.base, cfg.pageSettle)
       }
@@ -58,7 +59,9 @@ async function main() {
     } catch (e) {
       aborted = true
       console.log(`  !! suite ${key} aborted: ${e.message}`)
-      if (['s2', 's3', 's5'].includes(key)) {
+      // 把 abort 记成失败步骤，防止汇总误报 ALL GREEN
+      report.step(key, 'suite-aborted', false, e.message)
+      if (['s2', 's3', 's5', 's6'].includes(key)) {
         try { await b.screenshot(cfg.outDir + `/abort_${key}.png`) } catch { /* ignore */ }
       }
     }

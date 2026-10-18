@@ -1,15 +1,16 @@
 # Z-WMS 自动化测试套件
 
-可重复跑的全链路自动化测试：API 冒烟 → 全页面渲染 → CRUD → 入库建数 → 仓内作业 round-trip。
+可重复跑的全链路自动化测试：API 冒烟 → 全页面渲染 → CRUD → 入库建数 → 仓内作业 round-trip → 出库 round-trip。
 技术栈：Node 22（fetch / WebSocket 原生）+ 裸 CDP 驱动 headless Chrome，无第三方依赖。
+**CI**：`.github/workflows/tests.yml`，push(main/develop) 与 PR 自动跑全套，报告落 artifact。
 
 ## 运行
 
 前置：backend(:20011) 与 frontend-v2(:8081) 已启动。
 
 ```bash
-node run-all.js          # 全部 5 个套件
-node run-all.js s1 s3    # 只跑指定套件（s5 依赖 s4，须同跑）
+node run-all.js          # 全部 6 个套件
+node run-all.js s1 s3    # 只跑指定套件（s5 依赖 s4，须同跑；s6 自建数据可单跑）
 ```
 
 环境变量（见 `config.js`）：`WMS_API` `WMS_BASE` `WMS_USER` `WMS_PASS` `WMS_CHROME` `WMS_CDP_PORT` `WMS_TEST_OUT` 等。
@@ -22,8 +23,9 @@ node run-all.js s1 s3    # 只跑指定套件（s5 依赖 s4，须同跑）
 | s1_api_smoke | 登录 + 18 个 list + all/menus/select 类读接口探活，库位 id 非 0 校验 | API |
 | s2_pages | 动态拉 `/rolemenu/menus` 逐页导航：表格/树渲染、统计 4 静态路由 | CDP UI |
 | s3_crud | 角色设置 建→改(开关持久化)→删 round-trip（回归 CrudPage 丢主键） | CDP UI |
-| s4_inbound | SPU→ASN→confirm→unload→sorting→sorted→putaway×4 建测试库存 | API |
+| s4_inbound | SPU→ASN→confirm→unload→sorting→sorted→putaway×4 建测试库存（复用 lib/inbound.js） | API |
 | s5_warehouse | 冻结/解冻、移库 A→B→A、盘点零差异、加工三步 + 盘点清零自清洁 | UI+API |
+| s6_dispatch | 出库 7 态 round-trip：新建(0)→确认订单(2 锁库)→拣货(3)→打包(4)→称重(5)→发运(6 扣库存)→签收(7)；自建 1 条 qty=1 库存被出库消耗，无残留 | UI+API |
 
 ## 测试数据策略（自给自足 + 自清洁）
 
@@ -46,4 +48,5 @@ node run-all.js s1 s3    # 只跑指定套件（s5 依赖 s4，须同跑）
    - `/userrole/list` 不存在（404），userrole/category 走 `GET /xxx/all` + 前端过滤
 5. **CrudPage 组件文案约定**：工具栏「+ 新增」、模态确认「保存」、删除 dialog positiveText「删除」（不是"确定"）
 6. **表单 label 匹配**：Naive UI 必填项 label 文本带 ` *` 后缀，按 label 定位输入框时需剥离
-7. **wms.db 是 WAL 模式**：`docker exec cat wms.db` 单拷主文件是旧快照，排查数据必须连 `-wal/-shm` 一起拷或停容器
+7. **Naive UI n-grid 只认 n-gi / n-form-item-gi 子元素**：直接写 n-form-item 会被静默丢弃（不报错、不渲染），明细表单整块消失
+8. **wms.db 是 WAL 模式**：`docker exec cat wms.db` 单拷主文件是旧快照，排查数据必须连 `-wal/-shm` 一起拷或停容器

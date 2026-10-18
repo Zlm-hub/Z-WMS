@@ -256,6 +256,9 @@ export const dispatchApi = {
   update: (d: unknown) => update<unknown>('/dispatchlist', d),
   remove: (id: number) => remove('/dispatchlist', id),
   byNo: (dispatch_no: string) => request<Record<string, unknown>>({ url: '/dispatchlist/by-dispatch_no', method: 'GET', params: { dispatch_no } }),
+  // 确认订单前先取库存分配方案（含 pick_list，按五元组定位 stock）——
+  // byNo 的 DetailViewModel 无 pick_list/dispatchlist_id，直接喂 confirm-order 会锁不到库存
+  confirmCheck: (dispatch_no: string) => request<Record<string, unknown>>({ url: '/dispatchlist/confirm-check', method: 'GET', params: { dispatch_no } }),
   confirmOrder: (d: unknown) => request<string>({ url: '/dispatchlist/confirm-order', method: 'POST', data: d }),
   cancelOrder: (d: unknown) => request<string>({ url: '/dispatchlist/cancel-order', method: 'PUT', data: d }),
   pickList: (d: unknown) => request<Record<string, unknown>>({ url: '/dispatchlist/pick-list', method: 'GET', params: d }),
