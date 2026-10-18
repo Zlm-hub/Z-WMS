@@ -255,6 +255,12 @@ export const dispatchApi = {
   create: (d: unknown) => create<Record<string, unknown>>('/dispatchlist', d),
   update: (d: unknown) => update<unknown>('/dispatchlist', d),
   remove: (id: number) => remove('/dispatchlist', id),
+  // 删除整单：后端 DELETE 收 dispatch_no 查询串（仅 status≤1 可删）
+  removeByNo: (dispatch_no: string) => request<string>({ url: '/dispatchlist', method: 'DELETE', params: { dispatch_no } }),
+  // 取消作业（CancelOrderOpration）：status=2 释放拣货锁定回 1；status=3 回 2。收单个对象，不是数组
+  cancelOpration: (dispatch_no: string, dispatch_status: number) => request<string>({ url: '/dispatchlist/cancel-order', method: 'POST', data: { dispatch_no, dispatch_status } }),
+  // 注意：PUT cancel-order?id= 是「取消打包/称重明细」，与上面整单取消不是一回事
+  cancelDetail: (id: number) => request<string>({ url: '/dispatchlist/cancel-order', method: 'PUT', params: { id } }),
   byNo: (dispatch_no: string) => request<Record<string, unknown>>({ url: '/dispatchlist/by-dispatch_no', method: 'GET', params: { dispatch_no } }),
   // 确认订单前先取库存分配方案（含 pick_list，按五元组定位 stock）——
   // byNo 的 DetailViewModel 无 pick_list/dispatchlist_id，直接喂 confirm-order 会锁不到库存
