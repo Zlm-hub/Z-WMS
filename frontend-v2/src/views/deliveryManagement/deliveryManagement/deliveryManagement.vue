@@ -3,12 +3,12 @@
     <n-tabs type="segment" animated v-model:value="statusTab" @update:value="reload(1)">
       <n-tab-pane name="all" tab="全部" />
       <n-tab-pane name="0" tab="新订单" />
-      <n-tab-pane name="1" tab="待拣货" />
-      <n-tab-pane name="2" tab="待打包" />
-      <n-tab-pane name="3" tab="待称重" />
-      <n-tab-pane name="4" tab="待发运" />
-      <n-tab-pane name="5" tab="待签收" />
-      <n-tab-pane name="6" tab="已签收" />
+      <n-tab-pane name="2" tab="待拣货" />
+      <n-tab-pane name="3" tab="待打包" />
+      <n-tab-pane name="4" tab="待称重" />
+      <n-tab-pane name="5" tab="待发运" />
+      <n-tab-pane name="6" tab="待签收" />
+      <n-tab-pane name="7" tab="已签收" />
     </n-tabs>
 
     <div class="toolbar" style="margin-top: 12px">
@@ -44,12 +44,13 @@
               <n-button v-if="createForm.detailList.length > 1" quaternary type="error" size="small" @click="createForm.detailList.splice(i, 1)">移除</n-button>
             </template>
             <n-grid :cols="2" :x-gap="10">
-              <n-form-item label="商品规格" required>
+              <!-- 注意：n-grid 只认 n-gi / n-form-item-gi 子元素，直接写 n-form-item 会被静默丢弃 -->
+              <n-form-item-gi label="商品规格" required>
                 <n-select v-model:value="d.sku_id" filterable :options="skuOptions" placeholder="搜索规格" />
-              </n-form-item>
-              <n-form-item label="数量" required>
+              </n-form-item-gi>
+              <n-form-item-gi label="数量" required>
                 <n-input-number v-model:value="d.qty" :min="1" style="width: 100%" />
-              </n-form-item>
+              </n-form-item-gi>
             </n-grid>
           </n-card>
           <n-button dashed block @click="createForm.detailList.push(blankDetail())">+ 添加明细</n-button>
@@ -72,17 +73,21 @@ import {
   NGrid, NFormItemGi, NSelect, NInputNumber, NDivider, createDiscreteApi, type DataTableColumns, type PaginationProps
 } from 'naive-ui'
 import { pageSearch, dispatchApi, selectApi } from '@/api'
+import http from '@/api/http'
 
 const { message, dialog } = createDiscreteApi(['message', 'dialog'])
 
-const STATUS: Record<number, { text: string; type: 'default' | 'info' | 'warning' | 'success' }> = {
+// 后端 dispatchlist 表状态机：0 新订单 → 2 确认订单(锁库存生成拣货单) → 3 拣货完成
+// → 4 打包 → 5 称重 → 6 发运(扣库存) → 7 签收；1 为库存不足时 confirm-order 拆分出的缺货行
+const STATUS: Record<number, { text: string; type: 'default' | 'info' | 'warning' | 'success' | 'error' }> = {
   0: { text: '新订单', type: 'default' },
-  1: { text: '待拣货', type: 'info' },
-  2: { text: '待打包', type: 'warning' },
-  3: { text: '待称重', type: 'warning' },
-  4: { text: '待发运', type: 'warning' },
-  5: { text: '待签收', type: 'warning' },
-  6: { text: '已签收', type: 'success' }
+  1: { text: '缺货拆分', type: 'error' },
+  2: { text: '待拣货', type: 'info' },
+  3: { text: '待打包', type: 'warning' },
+  4: { text: '待称重', type: 'warning' },
+  5: { text: '待发运', type: 'warning' },
+  6: { text: '待签收', type: 'warning' },
+  7: { text: '已签收', type: 'success' }
 }
 
 const loading = ref(false)
@@ -119,11 +124,11 @@ const columns: DataTableColumns = [
         btns.push(h(NButton, { size: 'small', type: 'primary', quaternary: true, onClick: () => confirmOrder(row) }, { default: () => '确认订单' }))
         btns.push(h(NButton, { size: 'small', type: 'error', quaternary: true, onClick: () => cancelOrder(row) }, { default: () => '取消' }))
       }
-      if (st === 1) btns.push(h(NButton, { size: 'small', type: 'primary', quaternary: true, onClick: () => pick(row) }, { default: () => '拣货' }))
-      if (st === 2) btns.push(h(NButton, { size: 'small', type: 'warning', quaternary: true, onClick: () => simpleStep(row, 'package', '打包') }, { default: () => '打包' }))
-      if (st === 3) btns.push(h(NButton, { size: 'small', type: 'warning', quaternary: true, onClick: () => weigh(row) }, { default: () => '称重' }))
-      if (st === 4) btns.push(h(NButton, { size: 'small', type: 'info', quaternary: true, onClick: () => simpleStep(row, 'delivery', '发运') }, { default: () => '发运' }))
-      if (st === 5) btns.push(h(NButton, { size: 'small', type: 'success', quaternary: true, onClick: () => sign(row) }, { default: () => '签收' }))
+      if (st === 2) btns.push(h(NButton, { size: 'small', type: 'primary', quaternary: true, onClick: () => pick(row) }, { default: () => '拣货' }))
+      if (st === 3) btns.push(h(NButton, { size: 'small', type: 'warning', quaternary: true, onClick: () => simpleStep(row, 'package', '打包') }, { default: () => '打包' }))
+      if (st === 4) btns.push(h(NButton, { size: 'small', type: 'warning', quaternary: true, onClick: () => weigh(row) }, { default: () => '称重' }))
+      if (st === 5) btns.push(h(NButton, { size: 'small', type: 'info', quaternary: true, onClick: () => simpleStep(row, 'delivery', '发运') }, { default: () => '发运' }))
+      if (st === 6) btns.push(h(NButton, { size: 'small', type: 'success', quaternary: true, onClick: () => sign(row) }, { default: () => '签收' }))
       return h(NSpace, { size: 4 }, { default: () => btns })
     }
   }
@@ -195,8 +200,10 @@ async function confirmOrder(row: any) {
     positiveText: '确认', negativeText: '取消',
     onPositiveClick: async () => {
       try {
-        const detail = await dispatchApi.byNo(row.dispatch_no)
-        const list = (Array.isArray(detail) ? detail : [detail]) as any[]
+        // 先取库存分配方案（DispatchlistConfirmDetailViewModel：dispatchlist_id + pick_list 五元组），
+        // 再整体带 confirm:true 提交——by-dispatch_no 的 DetailViewModel 没有这些字段，锁不了库存
+        const plan = await dispatchApi.confirmCheck(row.dispatch_no)
+        const list = (Array.isArray(plan) ? plan : [plan]) as any[]
         await dispatchApi.confirmOrder(list.map((d) => ({ ...d, confirm: true })))
         message.success('订单已确认')
         reload()

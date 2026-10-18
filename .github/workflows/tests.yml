@@ -1,0 +1,72 @@
+# Z-WMS 全链路自动化测试 CI
+# 流程：构建 frontend-v2 → docker 起 backend(SQLite seed) + frontend-v2
+#       → 等 API 就绪 → 跑 tests/ 六套件（s1 API 冒烟 / s2 页面渲染 / s3 CRUD
+#       / s4 入库建数 / s5 仓内作业 round-trip / s6 出库 round-trip）→ 上传报告
+# 说明：
+# - ubuntu-latest runner 自带 Google Chrome（/usr/bin/google-chrome），测试框架
+#   通过 WMS_CHROME 环境变量指定，用裸 CDP 驱动 headless 渲染验证
+# - 测试数据每次运行自建（RT<tag> 唯一前缀）并在套件内自清洁，可重复执行
+name: tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch: {}
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check Chrome (runner 自带)
+        run: |
+          google-chrome --version || test -x /usr/bin/google-chrome || {
+            echo "::error::google-chrome not found on runner"
+            exit 1
+          }
+
+      - name: Build frontend-v2
+        run: cd frontend-v2 && npm ci && npm run build
+
+      - name: Build backend image
+        run: docker build -f rebuild/backend.Dockerfile -t modernwms-backend:latest .
+
+      - name: Start stack (backend + frontend-v2)
+        run: cd rebuild && docker compose up -d --build backend frontend-v2
+
+      - name: Wait for API ready
+        run: |
+          for i in $(seq 1 60); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:20011/login \
+              -H 'Content-Type: application/json' -d '{"user_name":"admin","password":"1"}' || true)
+            if [ "$code" = "200" ]; then echo "API ready"; exit 0; fi
+            sleep 3
+          done
+          echo "::error::backend not ready in 180s"
+          docker compose -f rebuild/docker-compose.yml logs backend
+          exit 1
+
+      - name: Run test suites
+        env:
+          WMS_API: http://localhost:20011
+          WMS_BASE: http://localhost:8081
+          WMS_CHROME: /usr/bin/google-chrome
+          WMS_PAGE_SETTLE: '6000'
+        run: node tests/run-all.js
+
+      - name: Upload test artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: |
+            /tmp/zwms_test_out/
+          if-no-files-found: ignore
