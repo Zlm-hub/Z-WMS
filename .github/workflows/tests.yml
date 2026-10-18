@@ -178,11 +178,13 @@ jobs:
         run: docker build -f rebuild/backend.Dockerfile -t modernwms-backend:latest .
 
       - name: Import PostgreSQL schema + seed
+        env:
+          PGPASSWORD: modernwms
         run: |
-          docker run --rm --network host -v "$GITHUB_WORKSPACE/rebuild/seed:/seeds" postgres:16 \
+          docker run --rm --network host -e PGPASSWORD=modernwms -v "$GITHUB_WORKSPACE/rebuild/seed:/seeds" postgres:16 \
             sh -c "psql -h127.0.0.1 -U postgres -d wms -v ON_ERROR_STOP=1 -f /seeds/postgres_schema.sql && \
                    psql -h127.0.0.1 -U postgres -d wms -v ON_ERROR_STOP=1 -f /seeds/postgres_seed.sql"
-          docker run --rm --network host postgres:16 \
+          docker run --rm --network host -e PGPASSWORD=modernwms postgres:16 \
             psql -h127.0.0.1 -U postgres -d wms -c 'SELECT COUNT(*) AS menus FROM menu;' -c 'SELECT COUNT(*) AS users FROM "user";'
 
       - name: Start backend (PostGres mode)
@@ -231,12 +233,12 @@ jobs:
         image: mcr.microsoft.com/mssql/server:2022-latest
         env:
           ACCEPT_EULA: Y
-          MSSQL_SA_PASSWORD: 'Modernwms#2026'
+          MSSQL_SA_PASSWORD: 'Modernwms2026'
           MSSQL_PID: Developer
         ports:
           - 1433:1433
         options: >-
-          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Modernwms#2026' -C -Q 'SELECT 1'"
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P Modernwms2026 -C -Q 'SELECT 1'"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 30
@@ -252,7 +254,8 @@ jobs:
 
       - name: Import SQL Server schema + seed
         run: |
-          SQ="docker run --rm --network host -v $GITHUB_WORKSPACE/rebuild/seed:/seeds mcr.microsoft.com/mssql/server:2022-latest /opt/mssql-tools18/bin/sqlcmd -S 127.0.0.1 -U sa -P 'Modernwms#2026' -C"
+          # 密码里别带引号：变量展开后单引号会变成密码的一部分
+          SQ="docker run --rm --network host -v $GITHUB_WORKSPACE/rebuild/seed:/seeds mcr.microsoft.com/mssql/server:2022-latest /opt/mssql-tools18/bin/sqlcmd -S 127.0.0.1 -U sa -P Modernwms2026 -C"
           $SQ -Q "CREATE DATABASE wms"
           $SQ -d wms -i /seeds/sqlserver_schema.sql
           $SQ -d wms -i /seeds/sqlserver_seed.sql
@@ -264,7 +267,7 @@ jobs:
             --add-host=host.docker.internal:host-gateway \
             -p 20014:20011 \
             -e "Database__db=SqlServer" \
-            -e "ConnectionStrings__SqlServerConn=Data Source=host.docker.internal,1433;User ID=sa;Password=Modernwms#2026;Initial Catalog=wms;Encrypt=False;TrustServerCertificate=True;" \
+            -e "ConnectionStrings__SqlServerConn=Data Source=host.docker.internal,1433;User ID=sa;Password=Modernwms2026;Initial Catalog=wms;Encrypt=False;TrustServerCertificate=True;" \
             -e "WMS_JWT_SIGNINGKEY=ci-sqlserver-key-8f4e2a91c7d5b3e6a0f9d8c7b2e4a6f1d3c5e7b9a2f4d6c8e0b2a4f6d8c1e3a5" \
             modernwms-backend:latest
 
