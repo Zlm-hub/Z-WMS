@@ -17,15 +17,17 @@ const { message } = createDiscreteApi(['message'])
 const rows = ref<any[]>([])
 const loading = ref(false)
 
-const lowCount = computed(() => rows.value.filter((r) => (r.qty ?? 0) <= (r.min_qty ?? r.safety_stock ?? 0)).length)
+// SafetyStockManagementViewModel 实际字段：warehouse_name/spu_code/spu_name/sku_code/sku_name/
+// sku_id/qty/qty_available/qty_locked/qty_frozen/safety_stock_qty（无 min_qty/qty_asn）
+const lowCount = computed(() => rows.value.filter((r) => (r.qty ?? 0) <= (r.safety_stock_qty ?? 0)).length)
 
 const cols = [
   { title: '商品名称', key: 'spu_name', ellipsis: { tooltip: true } },
   { title: '规格名称', key: 'sku_name', ellipsis: { tooltip: true } },
-  { title: '当前库存', key: 'qty', render: (r: any) => h(NTag, { size: 'small', type: (r.qty ?? 0) <= (r.min_qty ?? r.safety_stock ?? 0) ? 'error' : 'success' }, { default: () => String(r.qty ?? 0) }) },
-  { title: '安全线', key: 'min_qty', render: (r: any) => String(r.min_qty ?? r.safety_stock ?? '-') },
+  { title: '当前库存', key: 'qty', render: (r: any) => h(NTag, { size: 'small', type: (r.qty ?? 0) <= (r.safety_stock_qty ?? 0) ? 'error' : 'success' }, { default: () => String(r.qty ?? 0) }) },
+  { title: '安全线', key: 'safety_stock_qty', render: (r: any) => String(r.safety_stock_qty ?? '-') },
   { title: '可用量', key: 'qty_available' },
-  { title: '在途', key: 'qty_asn' }
+  { title: '仓库', key: 'warehouse_name' }
 ]
 
 onMounted(async () => {
