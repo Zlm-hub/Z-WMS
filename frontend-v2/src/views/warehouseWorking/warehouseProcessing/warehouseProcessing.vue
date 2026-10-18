@@ -57,6 +57,9 @@ let detailKeySeq = 0
 //（原 process_no/spu_name/sku_name/qty/process_type/remarks 均不存在；商品数量在明细里）
 const form = reactive<{ job_type: boolean; detailList: any[] }>({ job_type: true, detailList: [] })
 
+// QueryTable 数据源（勿删：QueryTable props.fetch 必需，缺失会导致表格无法加载）
+const fetch = (b: any) => stockprocessApi.list(b)
+
 const columns = [
   { title: '作业单号', key: 'job_code', width: 150 },
   {
@@ -161,9 +164,22 @@ function removeDetail(row: any) {
   form.detailList = form.detailList.filter((d) => d._key !== row._key)
 }
 
-function openCreate() {
+async function openCreate() {
   form.job_type = true
   form.detailList = [{ _key: ++detailKeySeq, stock_id: null, is_source: true, qty: 1 }, { _key: ++detailKeySeq, stock_id: null, is_source: false, qty: 1 }]
+  // 打开弹窗时重拉库存：过账后 qty_available 即时变化，旧快照的数量上限会失真
+  try {
+    const rows2 = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
+    stockMap.value = {}
+    stockOptions.value = []
+    for (const s of rows2) {
+      stockMap.value[s.id] = s
+      stockOptions.value.push({
+        label: `${s.warehouse_name} / ${s.location_name} / ${s.spu_name} / ${s.sku_name}${s.series_number ? `（${s.series_number}）` : ''}`,
+        value: s.id
+      })
+    }
+  } catch { /* 沿用旧快照 */ }
   showModal.value = true
 }
 
@@ -175,9 +191,12 @@ async function save() {
   saving.value = true
   try {
     // 后端 AddAsync 收 StockprocessViewModel：master + detailList，
-    // 明细按库存五元组定位 stock，is_source=true 为消耗、false 为产出
+    // 明细按库存五元组定位 stock，is_source=true 为消耗、false 为产出。
+    // process_status 必须显式传 false：上游 VM 该字段默认 true（建单即"已加工"），
+    // 不传会导致「确认加工」环节永远不出现，与上游流程不符
     await stockprocessApi.create({
       job_type: form.job_type,
+      process_status: false,
       detailList: form.detailList.map((d) => {
         const s = stockMap.value[d.stock_id]
         return {

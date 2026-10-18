@@ -343,9 +343,9 @@ async function openPutaway(row: any) {
     const pending = await asnApi.pendingPutaway(row.id)
     putawayList.value = pending.map((p: any) => ({ ...p, location_id: null }))
     showPutaway.value = true
-    // 加载全部库位
-    const locs = await http.post('/stock/location-list', pageSearch({ pageIndex: 1, pageSize: 200 }))
-    locationOptions.value = ((locs.data?.data?.rows as any[]) || []).map((l: any) => ({
+    // 加载全部库位（与上游一致走 goodslocation 全量列表；/stock/location-list 行内无 id 字段不可用）
+    const locs = await http.get('/goodslocation/all')
+    locationOptions.value = ((locs.data?.data as any[]) || []).map((l: any) => ({
       label: `${l.warehouse_name || ''} / ${l.warehouse_area_name || ''} / ${l.location_name}`,
       value: l.id
     }))
