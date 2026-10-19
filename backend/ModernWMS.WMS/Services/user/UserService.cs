@@ -154,7 +154,12 @@ namespace ModernWMS.WMS.Services
             }
             var entity = viewModel.Adapt<userEntity>();
             entity.id = 0;
-            var new_auth = GetRandomPassword();
+            // 新增用户：优先使用管理员指定的初始密码；未指定时生成随机密码（旧行为）
+            var new_auth = string.IsNullOrWhiteSpace(viewModel.password) ? GetRandomPassword() : viewModel.password.Trim();
+            if (new_auth.Length < 6)
+            {
+                return (0, "initial password must be at least 6 characters");
+            }
             entity.auth_string = PasswordHelper.Hash(new_auth);
             entity.create_time = DateTime.Now;
             entity.last_update_time = DateTime.Now;
@@ -196,6 +201,15 @@ namespace ModernWMS.WMS.Services
             entity.user_role = viewModel.user_role;
             entity.sex = viewModel.sex;
             entity.is_valid = viewModel.is_valid;
+            // 编辑时填写了密码则同步修改；留空表示保持原密码
+            if (!string.IsNullOrWhiteSpace(viewModel.password))
+            {
+                if (viewModel.password.Trim().Length < 6)
+                {
+                    return (false, "password must be at least 6 characters");
+                }
+                entity.auth_string = PasswordHelper.Hash(viewModel.password.Trim());
+            }
             entity.last_update_time = DateTime.Now;
             var qty = await _dBContext.SaveChangesAsync();
             if (qty > 0)

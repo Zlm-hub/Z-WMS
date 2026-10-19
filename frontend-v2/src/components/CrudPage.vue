@@ -73,6 +73,14 @@
               :rows="2"
               :placeholder="'请输入' + f.label"
             />
+            <n-input
+              v-else-if="f.type === 'password'"
+              v-model:value="formModel[f.key]"
+              type="password"
+              show-password-on="click"
+              :placeholder="f.placeholder || '请输入' + f.label"
+              :disabled="f.disabled"
+            />
           </n-form-item-gi>
         </n-grid>
       </n-form>
@@ -106,11 +114,12 @@ export interface CrudApi {
 export interface FieldDef {
   key: string
   label: string
-  type?: 'text' | 'number' | 'switch' | 'select' | 'textarea'
+  type?: 'text' | 'number' | 'switch' | 'select' | 'textarea' | 'password'
   options?: Array<{ label: string; value: any }>
   required?: boolean
   disabled?: boolean
   span?: number
+  placeholder?: string
   defaultValue?: unknown
 }
 
