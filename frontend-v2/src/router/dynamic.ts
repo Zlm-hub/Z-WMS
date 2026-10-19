@@ -1,6 +1,6 @@
 /**
- * 动态路由：�? /rolemenu/menus 返回的菜单映射到 src/views 下按约定组织的组�?
- * 约定：组件路�? = src/views/<vue_directory>/<vue_path>.vue（与后端字段一一对应�?
+ * 动态路由：�? /rolemenu/menus 返回的菜单映射到 src/views 下按约定组织的组�?
+ * 约定：组件路�? = src/views/<vue_directory>/<vue_path>.vue（与后端字段一一对应�?
  */
 import { reactive } from 'vue'
 import type { Router } from 'vue-router'
@@ -24,7 +24,7 @@ export const menuStore = reactive<{ list: MenuItem[]; loaded: boolean }>({ list:
 export const MODULE_LABELS: Record<string, string> = {
   '': '总览',
   baseModule: '基础资料',
-  wms: '库存与入�?',
+  wms: '库存与入�?',
   warehouseWorkingModule: '库内作业',
   deliveryManagement: '发货管理',
   statisticAnalysis: '统计分析'
@@ -50,12 +50,25 @@ export function menuToRoute(menu: MenuItem) {
 }
 
 export async function fetchMenus(): Promise<MenuItem[]> {
-  return request<MenuItem[]>({ url: '/rolemenu/menus', method: 'GET' })
+  // 必须用「当前登录角色」的菜单：/rolemenu/menus 是全租户菜单（给授权页画树用的），会导致权限不生效
+  return request<MenuItem[]>({ url: '/rolemenu/authority', method: 'GET' })
+}
+
+/** 已注册的动态路由名（退出登录时需清理，避免切换账号后残留上一个账号的权限） */
+const addedRoutes: string[] = []
+
+export function resetMenus(router: Router) {
+  for (const name of addedRoutes) {
+    if (router.hasRoute(name)) router.removeRoute(name)
+  }
+  addedRoutes.length = 0
+  menuStore.list = []
+  menuStore.loaded = false
 }
 
 export function setupDynamicRoutes(router: Router) {
   router.beforeEach(async (to) => {
-    // 登录�? / 未登录（由全局守卫处理跳转）不注册动态路�?
+    // 登录�? / 未登录（由全局守卫处理跳转）不注册动态路�?
     if (to.path === '/login') return true
     const saved = JSON.parse(localStorage.getItem('wms2_auth') || '{}')
     if (!saved.accessToken) return true
@@ -66,9 +79,12 @@ export function setupDynamicRoutes(router: Router) {
       menuStore.loaded = true
       for (const m of menus) {
         const r = menuToRoute(m)
-        if (!router.hasRoute(r.name)) router.addRoute('console', r)
+        if (!router.hasRoute(r.name)) {
+          router.addRoute('console', r)
+          addedRoutes.push(String(r.name))
+        }
       }
-      return to.fullPath // 重新导航以命中新注册的动态路�?
+      return to.fullPath // 重新导航以命中新注册的动态路�?
     } catch {
       return true
     }
