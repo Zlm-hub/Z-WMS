@@ -77,6 +77,13 @@ namespace ModernWMS.WMS.Entities.ViewModels
         public string auth_string { get; set; } = string.Empty;
 
         /// <summary>
+        /// initial password in plain text (create only; empty means generate a random one)
+        /// </summary>
+        [Display(Name = "password")]
+        [MaxLength(64, ErrorMessage = "MaxLength")]
+        public string password { get; set; } = string.Empty;
+
+        /// <summary>
         /// creator
         /// </summary>
         [Display(Name = "creator")]

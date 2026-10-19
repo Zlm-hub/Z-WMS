@@ -38,7 +38,13 @@ const fields = [
     { label: 'user', value: 'user' }
   ] as Array<{ label: string; value: string }> },
   { key: 'sex', label: '性别', type: 'select' as const, options: [{ label: '男', value: 'male' }, { label: '女', value: 'female' }] },
-  { key: 'contact_tel', label: '联系电话' }
+  { key: 'contact_tel', label: '联系电话' },
+  {
+    key: 'password',
+    label: '初始密码',
+    type: 'password' as const,
+    placeholder: '至少 6 位；编辑时留空表示不修改'
+  }
 ]
 
 // 角色下拉从后端动态加载：角色管理里新建的角色（如 test）必须能选到
@@ -57,22 +63,36 @@ onMounted(async () => {
 
 const api = {
   list: userApi.list,
-  // 后端创建用户时随机生成初始密码并通过返回消息带回（前端通用封装会丢弃该消息），
-  // 这里创建后立即调用重置密码接口取回新密码，并明确弹窗展示（仅显示这一次）
+  // 新增时由管理员自定义初始密码（后端 password 字段，PBKDF2 哈希存储）；留空则后端生成随机密码
   create: async (d: any) => {
-    const id = await userApi.create(d)
-    let pwd = ''
-    try { pwd = await userApi.resetPwd([Number(id)]) } catch { /* 取不到密码时提示走重置入口 */ }
+    const pwd = String(d?.password || '').trim()
+    if (!pwd) {
+      message.error('请设置初始密码（至少 6 位）')
+      throw new Error('password required')
+    }
+    if (pwd.length < 6) {
+      message.error('初始密码至少 6 位')
+      throw new Error('password too short')
+    }
+    const id = await userApi.create({ ...d, password: pwd })
     dialog.success({
       title: '用户创建成功',
-      content: pwd
-        ? `账号「${d?.user_name || ''}」已创建。\n初始密码：${pwd}\n仅显示这一次，请立即记录（之后只能重置，无法找回）。`
-        : '账号已创建，但未能获取初始密码，请用「重置选中用户密码」获取新密码。',
-      positiveText: '我已记录'
+      content: `账号「${d?.user_name || ''}」已创建，初始密码为你设置的密码。\n请提醒使用者首次登录后修改密码。`,
+      positiveText: '知道了'
     })
     return id
   },
-  update: userApi.update,
+  update: async (d: any) => {
+    // 编辑时密码留空 = 不修改；填写则同步改密
+    const pwd = String(d?.password || '').trim()
+    if (pwd && pwd.length < 6) {
+      message.error('新密码至少 6 位')
+      throw new Error('password too short')
+    }
+    const payload = { ...d }
+    if (!pwd) delete payload.password
+    return userApi.update(payload)
+  },
   remove: userApi.remove
 }
 
