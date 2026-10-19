@@ -1,12 +1,12 @@
 # Z-WMS 全链路自动化测试 CI
 # 四个 job 覆盖四种数据库：
 #   e2e           SQLite 种子库，跑全部 7 套件（含 UI 渲染）
-#   e2e-mysql     MySQL 8，跑 API 驱动套件 s1/s4/s7
+#   e2e-mysql     MySQL 8，跑全部 7 套件（前端 API 基址运行时可配，UI 套件覆盖）
 #   e2e-postgres  PostgreSQL 16，同上
 #   e2e-sqlserver SQL Server 2022，同上
 # 说明：
-# - 非 SQLite 三档只跑 API 套件：v2 前端 API 基址写死 hostname:20011，而这三档
-#   后端分别起在 20012/20013/20014，前端连不上
+# - 四档统一跑全部 7 套件。v2 前端 API 基址已改为运行时可配：前端容器通过环境变量
+#   WMS_API 注入真实后端地址（各档 20011/20012/20013/20014），不再写死 :20011。
 # - 建库脚本由 rebuild/tools/schemagen（EF 模型）+ seed2sql.py（SQLite seed 转换）生成
 # 说明：
 # - ubuntu-latest runner 自带 Google Chrome（/usr/bin/google-chrome），测试框架
@@ -77,8 +77,8 @@ jobs:
             /tmp/zwms_test_out/
           if-no-files-found: ignore
 
-  # MySQL 档：EF 生成 DDL + seed 转换数据建库，验证四库切换（UI 套件依赖 v2 前端
-  # 写死的 :20011 API 基址，MySQL 后端在 20012，故只跑 API 驱动套件 s1/s4/s7）
+  # MySQL 档：EF 生成 DDL + seed 转换数据建库，验证四库切换。
+  # 前端 API 基址已运行时可配（WMS_API 注入），与 SQLite 档一样跑全部 7 套件（含 UI）。
   e2e-mysql:
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -105,6 +105,9 @@ jobs:
       - name: Build backend image
         run: docker build -f rebuild/backend.Dockerfile -t modernwms-backend:latest .
 
+      - name: Build frontend-v2 image
+        run: cd frontend-v2 && npm ci && npm run build && docker build -t modernwms-frontend-v2:latest .
+
       - name: Import MySQL schema + seed
         run: |
           docker run --rm --network host -v "$GITHUB_WORKSPACE/rebuild/seed:/seeds" mysql:8.0 \
@@ -123,6 +126,13 @@ jobs:
             -e "WMS_JWT_SIGNINGKEY=ci-mysql-key-8f4e2a91c7d5b3e6a0f9d8c7b2e4a6f1d3c5e7b9a2f4d6c8e0b2a4f6d8c1e3a5" \
             modernwms-backend:latest
 
+      - name: Start frontend-v2 (MySql mode)
+        run: |
+          docker run -d --name frontend-v2-mysql \
+            -p 8081:80 \
+            -e "WMS_API=http://localhost:20012" \
+            modernwms-frontend-v2:latest
+
       - name: Wait for API ready
         run: |
           for i in $(seq 1 60); do
@@ -135,10 +145,13 @@ jobs:
           docker logs backend-mysql
           exit 1
 
-      - name: Run API suites on MySQL
+      - name: Run all suites on MySQL
         env:
           WMS_API: http://localhost:20012
-        run: node tests/run-all.js s1 s4 s7
+          WMS_BASE: http://localhost:8081
+          WMS_CHROME: /usr/bin/google-chrome
+          WMS_PAGE_SETTLE: '6000'
+        run: node tests/run-all.js
 
       - name: Upload mysql test artifacts
         if: always()
@@ -149,7 +162,8 @@ jobs:
             /tmp/zwms_test_out/
           if-no-files-found: ignore
 
-  # PostgreSQL 档：与 MySQL 档同构，脚本由 schemagen/seed2sql.py 生成
+  # PostgreSQL 档：与 MySQL 档同构，脚本由 schemagen/seed2sql.py 生成。
+  # 前端 API 基址已运行时可配（WMS_API 注入），跑全部 7 套件（含 UI）。
   # 注意：显式插入 id 后必须 setval 同步 identity 序列（seed 脚本已含）
   e2e-postgres:
     runs-on: ubuntu-latest
@@ -177,6 +191,9 @@ jobs:
       - name: Build backend image
         run: docker build -f rebuild/backend.Dockerfile -t modernwms-backend:latest .
 
+      - name: Build frontend-v2 image
+        run: cd frontend-v2 && npm ci && npm run build && docker build -t modernwms-frontend-v2:latest .
+
       - name: Import PostgreSQL schema + seed
         env:
           PGPASSWORD: modernwms
@@ -197,6 +214,13 @@ jobs:
             -e "WMS_JWT_SIGNINGKEY=ci-postgres-key-8f4e2a91c7d5b3e6a0f9d8c7b2e4a6f1d3c5e7b9a2f4d6c8e0b2a4f6d8c1e3a5" \
             modernwms-backend:latest
 
+      - name: Start frontend-v2 (PostGres mode)
+        run: |
+          docker run -d --name frontend-v2-postgres \
+            -p 8081:80 \
+            -e "WMS_API=http://localhost:20013" \
+            modernwms-frontend-v2:latest
+
       - name: Wait for API ready
         run: |
           for i in $(seq 1 60); do
@@ -209,10 +233,13 @@ jobs:
           docker logs backend-postgres
           exit 1
 
-      - name: Run API suites on PostgreSQL
+      - name: Run all suites on PostgreSQL
         env:
           WMS_API: http://localhost:20013
-        run: node tests/run-all.js s1 s4 s7
+          WMS_BASE: http://localhost:8081
+          WMS_CHROME: /usr/bin/google-chrome
+          WMS_PAGE_SETTLE: '6000'
+        run: node tests/run-all.js
 
       - name: Upload postgres test artifacts
         if: always()
@@ -223,7 +250,8 @@ jobs:
             /tmp/zwms_test_out/
           if-no-files-found: ignore
 
-  # SQL Server 档：同上；sqlcmd 用容器内的 mssql-tools18（-C 信任自签证书）
+  # SQL Server 档：同上；sqlcmd 用容器内的 mssql-tools18（-C 信任自签证书）。
+  # 前端 API 基址已运行时可配（WMS_API 注入），跑全部 7 套件（含 UI）。
   # seed 脚本用 SET IDENTITY_INSERT ON/OFF 包裹显式 id 插入
   e2e-sqlserver:
     runs-on: ubuntu-latest
@@ -252,6 +280,9 @@ jobs:
       - name: Build backend image
         run: docker build -f rebuild/backend.Dockerfile -t modernwms-backend:latest .
 
+      - name: Build frontend-v2 image
+        run: cd frontend-v2 && npm ci && npm run build && docker build -t modernwms-frontend-v2:latest .
+
       - name: Import SQL Server schema + seed
         run: |
           # 密码里别带引号：变量展开后单引号会变成密码的一部分
@@ -271,6 +302,13 @@ jobs:
             -e "WMS_JWT_SIGNINGKEY=ci-sqlserver-key-8f4e2a91c7d5b3e6a0f9d8c7b2e4a6f1d3c5e7b9a2f4d6c8e0b2a4f6d8c1e3a5" \
             modernwms-backend:latest
 
+      - name: Start frontend-v2 (SqlServer mode)
+        run: |
+          docker run -d --name frontend-v2-sqlserver \
+            -p 8081:80 \
+            -e "WMS_API=http://localhost:20014" \
+            modernwms-frontend-v2:latest
+
       - name: Wait for API ready
         run: |
           for i in $(seq 1 60); do
@@ -283,10 +321,13 @@ jobs:
           docker logs backend-sqlserver
           exit 1
 
-      - name: Run API suites on SQL Server
+      - name: Run all suites on SQL Server
         env:
           WMS_API: http://localhost:20014
-        run: node tests/run-all.js s1 s4 s7
+          WMS_BASE: http://localhost:8081
+          WMS_CHROME: /usr/bin/google-chrome
+          WMS_PAGE_SETTLE: '6000'
+        run: node tests/run-all.js
 
       - name: Upload sqlserver test artifacts
         if: always()
