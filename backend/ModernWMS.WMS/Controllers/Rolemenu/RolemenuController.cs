@@ -50,13 +50,46 @@
 
         #region Api
         /// <summary>
+        /// 当前登录用户的角色 id：优先取 token 里的 userrole_id，旧 token（无该字段）回退按角色名查
+        /// </summary>
+        private async Task<int> GetCurrentRoleIdAsync()
+        {
+            var role_id = CurrentUser.userrole_id;
+            if (role_id <= 0)
+            {
+                role_id = await _rolemenuService.GetRoleIdByRoleNameAsync(CurrentUser.user_role, CurrentUser.tenant_id);
+            }
+            return role_id;
+        }
+
+        /// <summary>
+        /// 当前用户是否被授予「角色权限」菜单（拿它当"能管理角色权限"的判据，避免越权改别人的权限）
+        /// </summary>
+        private async Task<bool> CanManageRoleMenuAsync()
+        {
+            var role_id = await GetCurrentRoleIdAsync();
+            if (role_id <= 0)
+            {
+                return false;
+            }
+            var menus = await _rolemenuService.GetMenusByRoleId(role_id);
+            return menus.Any(m => m.menu_name == "roleMenu");
+        }
+        /// <summary>
         /// Get menu's authority by user role id
         /// </summary>
         /// <param name="userrole_id">user role id</param>
         /// <returns></returns>
         [HttpGet("authority")]
-        public async  Task<ResultModel<List<MenuViewModel>>> GetMenusByRoleId(int userrole_id)
+        public async Task<ResultModel<List<MenuViewModel>>> GetMenusByRoleId(int userrole_id = 0)
         {
+            // 不传 userrole_id 时按当前登录用户的角色过滤（侧边栏/动态路由用这个口径）
+            var own_role_id = await GetCurrentRoleIdAsync();
+            if (userrole_id <= 0 || userrole_id != own_role_id && !await CanManageRoleMenuAsync())
+            {
+                // 非「角色权限」管理员只能看自己角色的菜单，防止 ?userrole_id=1 越权读全量
+                userrole_id = own_role_id;
+            }
             var data = await _rolemenuService.GetMenusByRoleId(userrole_id);
             if (data.Any())
             {
@@ -126,6 +159,10 @@
         [HttpPost]
         public async Task<ResultModel<int>> AddAsync(RolemenuBothViewModel viewModel)
         {
+            if (!await CanManageRoleMenuAsync())
+            {
+                return ResultModel<int>.Error("Sorry, you don't have the authority required!", 403, 0);
+            }
             var (id, msg) = await _rolemenuService.AddAsync(viewModel, CurrentUser);
             if (id > 0)
             {
@@ -145,6 +182,10 @@
         [HttpPut]
         public async Task<ResultModel<bool>> UpdateAsync(RolemenuBothViewModel viewModel)
         {
+            if (!await CanManageRoleMenuAsync())
+            {
+                return ResultModel<bool>.Error("Sorry, you don't have the authority required!", 403, false);
+            }
             var (flag, msg) = await _rolemenuService.UpdateAsync(viewModel, CurrentUser);
             if (flag)
             {
@@ -164,6 +205,10 @@
         [HttpDelete]
         public async Task<ResultModel<string>> DeleteAsync(int userrole_id)
         {
+            if (!await CanManageRoleMenuAsync())
+            {
+                return ResultModel<string>.Error("Sorry, you don't have the authority required!", 403, string.Empty);
+            }
             var (flag, msg) = await _rolemenuService.DeleteAsync(userrole_id);
             if (flag)
             {
