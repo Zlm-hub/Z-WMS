@@ -121,6 +121,10 @@ class Browser {
     if (this.warmed) return
     await this.navigate(base + '/#/login', 2500)
     await this.evaluate(`localStorage.setItem('wms2_auth', ${JSON.stringify(JSON.stringify({ accessToken: token, refreshToken: '', user: { user_name: 'admin' } }))})`)
+    // 必须整页重载：pinia store 在登录页渲染时已创建并读到空 token，
+    // 只改 hash 不会重建 store，后续请求就不带 Authorization，后端启用 [Authorize] 后会 401 踢回登录页
+    await this.send('Page.reload', { ignoreCache: true })
+    await sleep(2000)
     await this.navigate(base + '/#/', settleMs)
     this.warmed = true
   }
