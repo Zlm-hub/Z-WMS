@@ -95,24 +95,35 @@
     </n-modal>
 
     <!-- 上架 -->
-    <n-modal v-model:show="showPutaway" title="序列号上架" preset="card" style="width: 680px">
+    <n-modal v-model:show="showPutaway" title="序列号上架" preset="card" style="width: 780px">
       <n-alert v-if="!putawayList.length" type="info">暂无待上架序列号</n-alert>
-      <n-space v-else vertical>
-        <n-card v-for="(p, i) in putawayList" :key="p.series_number" size="small">
-          <n-grid :cols="3" :x-gap="10" style="align-items: center">
-            <n-gi :span="2">
-              <n-space vertical size="small">
-                <n-text strong>序列号：{{ p.series_number }}</n-text>
-                <n-text depth="3">数量 {{ p.sorted_qty }}</n-text>
-                <n-select v-model:value="p.location_id" :options="locationOptions" placeholder="选择上架库位" size="small" />
-              </n-space>
-            </n-gi>
-            <n-gi>
-              <n-button type="primary" block :disabled="!p.location_id" @click="doPutaway(p)">上架</n-button>
-            </n-gi>
-          </n-grid>
-        </n-card>
-      </n-space>
+      <template v-else>
+        <n-space align="center" style="margin-bottom: 10px">
+          <n-text strong>统一库位</n-text>
+          <n-select
+            v-model:value="defaultLocation"
+            :options="locationOptions"
+            placeholder="选择全部序列号的上架库位"
+            style="width: 380px"
+            size="small"
+            clearable
+          />
+          <n-button type="primary" :loading="putawayAllLoading" :disabled="!defaultLocation" @click="doPutawayAll">
+            一键全部上架（{{ putawayList.length }} 条）
+          </n-button>
+        </n-space>
+        <n-text depth="3" style="font-size: 12px">个别序列号需上架到不同库位时，可在下方列表单独修改库位后逐条上架。</n-text>
+        <n-data-table
+          size="small"
+          virtual-scroll
+          :max-height="340"
+          :columns="putawayColumns"
+          :data="putawayList"
+          :row-key="(r: any) => r.series_number"
+          :pagination="false"
+          style="margin-top: 8px"
+        />
+      </template>
     </n-modal>
   </n-card>
 </template>
@@ -336,9 +347,12 @@ async function doSort() {
 const showPutaway = ref(false)
 const putawayList = ref<Array<{ asn_id: number; goods_owner_id: number; series_number: string; sorted_qty: number; location_id: number | null }>>([])
 const locationOptions = ref<Array<{ label: string; value: number }>>([])
+const defaultLocation = ref<number | null>(null)
+const putawayAllLoading = ref(false)
 
 async function openPutaway(row: any) {
   currentRow.value = row
+  defaultLocation.value = null
   try {
     const pending = await asnApi.pendingPutaway(row.id)
     putawayList.value = pending.map((p: any) => ({ ...p, location_id: null }))
@@ -353,6 +367,53 @@ async function openPutaway(row: any) {
     message.error(e instanceof Error ? e.message : '获取待上架数据失败')
   }
 }
+
+// 批量：全部待上架序列号一次性上架到统一库位（一次 PUT，避免大单逐条点击）
+async function doPutawayAll() {
+  if (!defaultLocation.value) { message.error('请先选择统一库位'); return }
+  putawayAllLoading.value = true
+  try {
+    await asnApi.putaway(putawayList.value.map((p) => ({
+      asn_id: p.asn_id,
+      goods_owner_id: p.goods_owner_id,
+      series_number: p.series_number,
+      goods_location_id: defaultLocation.value,
+      putaway_qty: p.sorted_qty
+    })))
+    message.success(`已全部上架 ${putawayList.value.length} 条序列号`)
+    showPutaway.value = false
+    reload()
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '批量上架失败')
+  } finally {
+    putawayAllLoading.value = false
+  }
+}
+
+const putawayColumns: DataTableColumns = [
+  { title: '序列号', key: 'series_number', width: 190 },
+  { title: '数量', key: 'sorted_qty', width: 70 },
+  {
+    title: '上架库位', key: 'location_id',
+    render: (p: any) => h(NSelect, {
+      value: p.location_id,
+      options: locationOptions.value,
+      placeholder: '默认用统一库位',
+      size: 'small',
+      clearable: true,
+      style: 'width: 100%',
+      onUpdateValue: (v: number | null) => { p.location_id = v }
+    })
+  },
+  {
+    title: '操作', key: '__act', width: 90,
+    render: (p: any) => h(NButton, {
+      size: 'small', type: 'primary', quaternary: true,
+      disabled: !p.location_id,
+      onClick: () => doPutaway(p)
+    }, { default: () => '单独上架' })
+  }
+]
 
 async function doPutaway(p: any) {
   try {

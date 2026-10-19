@@ -8,6 +8,7 @@ FROM nginx:latest
 COPY dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/nginx.conf
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Windows 检出的 CRLF 会让 shebang 变成 "#!/bin/sh\r" 导致 exec 失败，构建时统一转 LF
+RUN sed -i 's/\r$//' /entrypoint.sh && chmod +x /entrypoint.sh
 EXPOSE 80
 ENTRYPOINT ["/entrypoint.sh"]
