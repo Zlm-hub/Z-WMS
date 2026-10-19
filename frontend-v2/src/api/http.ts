@@ -5,10 +5,13 @@
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios'
 import { useAuthStore } from '@/stores/auth'
 
-// API 基址：与原版一致，前端直连后端端口（后端固定 20011，与前端页面端口无关）
-// - 默认：当前域名 + 20011
-// - 本地开发可用 VITE_API_BASE 覆盖（如 http://localhost:20011）
+// API 基址解析优先级（与原版一致，前端直连后端端口）：
+//   1. 运行时注入 window.__WMS_API__（容器 entrypoint 渲染 public/config.js，支持各数据库档端口不同）
+//   2. 构建时 VITE_API_BASE（本地开发覆盖，如 http://localhost:20011）
+//   3. 默认回退：当前域名 + 20011（SQLite 档兼容）
 function resolveBaseURL(): string {
+  const runtimeApi = (window as unknown as { __WMS_API__?: string }).__WMS_API__
+  if (runtimeApi) return runtimeApi
   if (import.meta.env.VITE_API_BASE) return import.meta.env.VITE_API_BASE as string
   return `${window.location.protocol}//${window.location.hostname}:20011`
 }
