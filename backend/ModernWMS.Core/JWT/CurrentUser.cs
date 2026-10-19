@@ -29,6 +29,12 @@ namespace ModernWMS.Core.JWT
         public string user_role { get; set; } = "admin";
 
         /// <summary>
+        /// userrole_id（角色主键，登录时一并写入 token —— 权限/菜单按它过滤，比按角色名查更可靠）
+        /// 旧 token 里没有这个字段时为 0，调用方需按 user_role 名字回退查找
+        /// </summary>
+        public int userrole_id { get; set; } = 0;
+
+        /// <summary>
         /// tenant
         /// </summary>
         public long tenant_id { get; set; } = 1;

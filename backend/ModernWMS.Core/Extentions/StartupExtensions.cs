@@ -28,6 +28,7 @@ using ModernWMS.Core.Middleware;
 using Microsoft.Extensions.DependencyModel;
 using ModernWMS.Core.DI;
 using Microsoft.Extensions.Localization;
+using ModernWMS.Core.Utility;
 using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 using Microsoft.EntityFrameworkCore.Migrations.Internal;
 using System.Security.AccessControl;
@@ -264,8 +265,12 @@ namespace ModernWMS.Core.Extentions
 
             services.AddAuthentication(options =>
             {
-                options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
-                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                // 认证/挑战统一走自定义 Scheme：它用 GlobalConsts.SigningKey（env 可覆盖）验签，
+                // 并把用户信息还原成 ClaimValueTypes.Json 声明 —— 这是 BaseController.CurrentUser 的唯一来源。
+                // 原版默认 Scheme 指向 JwtBearer，但 JwtBearer 的签名密钥读的是 appsettings（与签发侧 env 密钥不一致），
+                // 且全站控制器都没有 [Authorize]，导致 User 永远为空、CurrentUser 永远回落成 admin。
+                options.DefaultScheme = nameof(ApiResponseHandler);
+                options.DefaultAuthenticateScheme = nameof(ApiResponseHandler);
                 options.DefaultChallengeScheme = nameof(ApiResponseHandler);
                 options.DefaultForbidScheme = nameof(ApiResponseHandler);
             }
@@ -280,7 +285,8 @@ namespace ModernWMS.Core.Extentions
                     ValidIssuer = tokenSettings["Issuer"],
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(tokenSettings["SigningKey"])),
+                    // 与签发侧保持同一密钥来源，避免 appsettings 与 WMS_JWT_SIGNINGKEY 不一致导致验签失败
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(GlobalConsts.SigningKey)),
                     ClockSkew = TimeSpan.Zero
                 };
             })
