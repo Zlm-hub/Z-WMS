@@ -102,28 +102,8 @@ const menuOptions = computed(() => {
       for (const i of items) options.push({ label: i.menu_name, key: i.path })
     }
   }
-  // 首页固定置顶；总览（全屏页）与统计分析为静态路由分组
+  // 首页固定置顶；总览（大屏/3D）与统计分析已入菜单表，随动态菜单按角色过滤展示
   options.unshift({ label: '工作台', key: '/home' })
-  options.push({
-    type: 'group',
-    label: '总览',
-    key: 'group-overview',
-    children: [
-      { label: '数据大屏', key: '/large-screen' },
-      { label: '3D 库房', key: '/vwms' }
-    ]
-  })
-  options.push({
-    type: 'group',
-    label: '统计分析',
-    key: 'group-stats',
-    children: [
-      { label: '入库统计', key: '/stat-asn' },
-      { label: '发货统计', key: '/stat-delivery' },
-      { label: '安全库存', key: '/stat-safety' },
-      { label: '库龄统计', key: '/stat-age' }
-    ]
-  })
   return options
 })
 

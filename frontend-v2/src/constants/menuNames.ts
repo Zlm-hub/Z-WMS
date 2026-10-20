@@ -19,6 +19,12 @@ export const MENU_NAMES: Record<string, string> = {
   warehouseFreeze: '库存冻结',
   warehouseAdjust: '库存调整',
   warehouseTaking: '库存盘点',
+  largeScreen: '数据大屏',
+  vwms: '3D 库房',
+  statAsn: '入库统计',
+  statDelivery: '发货统计',
+  statSafety: '安全库存',
+  statAge: '库龄统计',
   home: '工作台',
   homepage: '首页'
 }

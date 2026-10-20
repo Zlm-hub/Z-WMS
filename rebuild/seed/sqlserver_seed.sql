@@ -97,6 +97,12 @@ INSERT INTO [menu] ([id], [menu_name], [module], [vue_path], [vue_path_detail], 
 INSERT INTO [menu] ([id], [menu_name], [module], [vue_path], [vue_path_detail], [vue_directory], [sort], [tenant_id], [menu_actions]) VALUES (36, 'warehouseTaking', 'warehouseWorkingModule', 'warehouseTaking', '', 'warehouseWorking/warehouseTaking', 17, 1, '[]');
 INSERT INTO [menu] ([id], [menu_name], [module], [vue_path], [vue_path_detail], [vue_directory], [sort], [tenant_id], [menu_actions]) VALUES (37, 'stockAsn', '', 'stockAsn', '', 'wms/stockAsn', 18, 1, '[]');
 INSERT INTO [menu] ([id], [menu_name], [module], [vue_path], [vue_path_detail], [vue_directory], [sort], [tenant_id], [menu_actions]) VALUES (38, 'deliveryManagement', 'deliveryManagement', 'deliveryManagement', '', 'deliveryManagement/deliveryManagement', 19, 1, '[]');
+INSERT INTO [menu] ([id], [menu_name], [module], [vue_path], [vue_path_detail], [vue_directory], [sort], [tenant_id], [menu_actions]) VALUES (39, 'largeScreen', 'overviewModule', 'large-screen', '', 'largeScreen', 20, 1, '[]');
+INSERT INTO [menu] ([id], [menu_name], [module], [vue_path], [vue_path_detail], [vue_directory], [sort], [tenant_id], [menu_actions]) VALUES (40, 'vwms', 'overviewModule', 'vwms', '', 'vwms', 21, 1, '[]');
+INSERT INTO [menu] ([id], [menu_name], [module], [vue_path], [vue_path_detail], [vue_directory], [sort], [tenant_id], [menu_actions]) VALUES (41, 'statAsn', 'statisticAnalysis', 'stat-asn', '', 'statisticAnalysis/statAsn', 22, 1, '[]');
+INSERT INTO [menu] ([id], [menu_name], [module], [vue_path], [vue_path_detail], [vue_directory], [sort], [tenant_id], [menu_actions]) VALUES (42, 'statDelivery', 'statisticAnalysis', 'stat-delivery', '', 'statisticAnalysis/statDelivery', 23, 1, '[]');
+INSERT INTO [menu] ([id], [menu_name], [module], [vue_path], [vue_path_detail], [vue_directory], [sort], [tenant_id], [menu_actions]) VALUES (43, 'statSafety', 'statisticAnalysis', 'stat-safety', '', 'statisticAnalysis/statSafety', 24, 1, '[]');
+INSERT INTO [menu] ([id], [menu_name], [module], [vue_path], [vue_path_detail], [vue_directory], [sort], [tenant_id], [menu_actions]) VALUES (44, 'statAge', 'statisticAnalysis', 'stat-age', '', 'statisticAnalysis/statAge', 25, 1, '[]');
 SET IDENTITY_INSERT [menu] OFF;
 GO
 
@@ -120,6 +126,12 @@ INSERT INTO [rolemenu] ([id], [userrole_id], [menu_id], [authority], [create_tim
 INSERT INTO [rolemenu] ([id], [userrole_id], [menu_id], [authority], [create_time], [last_update_time], [tenant_id], [menu_actions_authority]) VALUES (17, 1, 36, 1, '2023-01-06 14:14:34.3281933', '2023-01-06 14:14:34.3281933', 1, '[]');
 INSERT INTO [rolemenu] ([id], [userrole_id], [menu_id], [authority], [create_time], [last_update_time], [tenant_id], [menu_actions_authority]) VALUES (18, 1, 37, 1, '2023-01-06 14:14:34.3281933', '2023-01-06 14:14:34.3281933', 1, '[]');
 INSERT INTO [rolemenu] ([id], [userrole_id], [menu_id], [authority], [create_time], [last_update_time], [tenant_id], [menu_actions_authority]) VALUES (19, 1, 38, 1, '2023-01-06 14:14:34.3281933', '2023-01-06 14:14:34.3281933', 1, '[]');
+INSERT INTO [rolemenu] ([id], [userrole_id], [menu_id], [authority], [create_time], [last_update_time], [tenant_id], [menu_actions_authority]) VALUES (20, 1, 39, 1, '2023-01-06 14:14:34.3281933', '2023-01-06 14:14:34.3281933', 1, '[]');
+INSERT INTO [rolemenu] ([id], [userrole_id], [menu_id], [authority], [create_time], [last_update_time], [tenant_id], [menu_actions_authority]) VALUES (21, 1, 40, 1, '2023-01-06 14:14:34.3281933', '2023-01-06 14:14:34.3281933', 1, '[]');
+INSERT INTO [rolemenu] ([id], [userrole_id], [menu_id], [authority], [create_time], [last_update_time], [tenant_id], [menu_actions_authority]) VALUES (22, 1, 41, 1, '2023-01-06 14:14:34.3281933', '2023-01-06 14:14:34.3281933', 1, '[]');
+INSERT INTO [rolemenu] ([id], [userrole_id], [menu_id], [authority], [create_time], [last_update_time], [tenant_id], [menu_actions_authority]) VALUES (23, 1, 42, 1, '2023-01-06 14:14:34.3281933', '2023-01-06 14:14:34.3281933', 1, '[]');
+INSERT INTO [rolemenu] ([id], [userrole_id], [menu_id], [authority], [create_time], [last_update_time], [tenant_id], [menu_actions_authority]) VALUES (24, 1, 43, 1, '2023-01-06 14:14:34.3281933', '2023-01-06 14:14:34.3281933', 1, '[]');
+INSERT INTO [rolemenu] ([id], [userrole_id], [menu_id], [authority], [create_time], [last_update_time], [tenant_id], [menu_actions_authority]) VALUES (25, 1, 44, 1, '2023-01-06 14:14:34.3281933', '2023-01-06 14:14:34.3281933', 1, '[]');
 SET IDENTITY_INSERT [rolemenu] OFF;
 GO
 

@@ -27,6 +27,7 @@ export const MODULE_LABELS: Record<string, string> = {
   wms: '库存与入�?',
   warehouseWorkingModule: '库内作业',
   deliveryManagement: '发货管理',
+  overviewModule: '总览',
   statisticAnalysis: '统计分析'
 }
 
@@ -72,7 +73,12 @@ export function setupDynamicRoutes(router: Router) {
     if (to.path === '/login') return true
     const saved = JSON.parse(localStorage.getItem('wms2_auth') || '{}')
     if (!saved.accessToken) return true
-    if (menuStore.loaded) return true
+    // 静态页（大屏/3D/统计）的权限门槛：菜单表里有对应记录，按当前角色过滤
+    const needMenu = to.meta?.requiredMenu as string | undefined
+    if (menuStore.loaded) {
+      if (needMenu && !menuStore.list.some((m) => m.menu_name === needMenu)) return '/home'
+      return true
+    }
     try {
       const menus = await fetchMenus()
       menuStore.list = menus
@@ -84,6 +90,8 @@ export function setupDynamicRoutes(router: Router) {
           addedRoutes.push(String(r.name))
         }
       }
+      // 首次加载后就地校验一次静态页权限，避免多跳一轮
+      if (needMenu && !menus.some((m) => m.menu_name === needMenu)) return '/home'
       return to.fullPath // 重新导航以命中新注册的动态路�?
     } catch {
       return true
