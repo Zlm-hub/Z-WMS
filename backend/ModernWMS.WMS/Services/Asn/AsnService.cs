@@ -507,16 +507,34 @@ namespace ModernWMS.WMS.Services
             {
                 return (false, "[202]" + $"{_stringLocalizer["ASN_Status_Is_Not_Pre_Load"]}");
             }
+            // 经手人姓名以库里的用户为准，只认前端传的 id：
+            // 历史上人员下拉误用了「角色」列表，导致 unload_person 被存成 admin/test 之类的角色名
+            var person_ids = viewModels.Where(t => t.unload_person_id > 0).Select(t => t.unload_person_id).Distinct().ToList();
+            var person_map = new Dictionary<int, string>();
+            if (person_ids.Any())
+            {
+                var person_rows = await _dBContext.GetDbSet<userEntity>().AsNoTracking()
+                                                  .Where(t => person_ids.Contains(t.id) && t.tenant_id == user.tenant_id)
+                                                  .Select(t => new { t.id, t.user_num, t.user_name })
+                                                  .ToListAsync();
+                foreach (var p in person_rows)
+                {
+                    person_map[p.id] = string.IsNullOrWhiteSpace(p.user_name) ? p.user_num : p.user_name;
+                }
+            }
             entities.ForEach(t =>
             {
-                var vm = viewModels.FirstOrDefault(t => t.id == t.id);
+                // 原写法 lambda 参数与循环变量同名，t.id == t.id 恒真 → 批量卸货时永远取到第一条明细
+                var vm = viewModels.FirstOrDefault(v => v.id == t.id);
                 if (vm != null)
                 {
                     t.asn_status = 2;
                     t.last_update_time = DateTime.Now;
                     t.unload_time = vm.unload_time;
                     t.unload_person_id = vm.unload_person_id == 0 ? user.user_id : vm.unload_person_id;
-                    t.unload_person = vm.unload_person_id == 0 ? user.user_name : vm.unload_person;
+                    t.unload_person = vm.unload_person_id == 0
+                        ? user.user_name
+                        : (person_map.TryGetValue(vm.unload_person_id, out var person_name) ? person_name : vm.unload_person);
                 }
             });
             var qty = await _dBContext.SaveChangesAsync();

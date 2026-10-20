@@ -26,6 +26,13 @@ namespace ModernWMS.WMS.IServices
         Task<List<FormSelectItem>> GetSelectItemsAsnyc(CurrentUser currentUser);
 
         /// <summary>
+        /// get select items of real users (for person/operator fields)
+        /// </summary>
+        /// <param name="currentUser">current user</param>
+        /// <returns></returns>
+        Task<List<FormSelectItem>> GetUserSelectItemsAsync(CurrentUser currentUser);
+
+        /// <summary>
         /// page search
         /// </summary>
         /// <param name="pageSearch">args</param>

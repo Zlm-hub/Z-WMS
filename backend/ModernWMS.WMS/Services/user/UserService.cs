@@ -82,6 +82,29 @@ namespace ModernWMS.WMS.Services
         }
 
         /// <summary>
+        /// get select items of real users (for person/operator fields such as 经手人)
+        /// 注意与 GetSelectItemsAsnyc 的区别：那个返回的是「角色」，
+        /// 业务上「经手人/操作人」必须是人，不能是角色（一个角色下可以有多个用户）
+        /// </summary>
+        /// <param name="currentUser">current user</param>
+        /// <returns></returns>
+        public async Task<List<FormSelectItem>> GetUserSelectItemsAsync(CurrentUser currentUser)
+        {
+            var user_DBSet = _dBContext.GetDbSet<userEntity>();
+            return await (from u in user_DBSet.AsNoTracking()
+                          where u.is_valid == true && u.tenant_id == currentUser.tenant_id
+                          orderby u.user_num
+                          select new FormSelectItem
+                          {
+                              code = "user",
+                              // 展示用姓名，没填姓名时退化成账号，避免出现空选项
+                              name = string.IsNullOrWhiteSpace(u.user_name) ? u.user_num : u.user_name,
+                              value = u.id.ToString(),
+                              comments = u.user_num,
+                          }).ToListAsync();
+        }
+
+        /// <summary>
         /// page search
         /// </summary>
         /// <param name="pageSearch">args</param>

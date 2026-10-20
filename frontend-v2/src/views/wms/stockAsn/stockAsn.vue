@@ -136,6 +136,7 @@ import {
   createDiscreteApi, type DataTableColumns, type PaginationProps
 } from 'naive-ui'
 import { pageSearch, asnApi, selectApi, ownerApi } from '@/api'
+import { useAuthStore } from '@/stores/auth'
 import http from '@/api/http'
 
 const { message, dialog } = createDiscreteApi(['message', 'dialog'])
@@ -298,17 +299,21 @@ const currentRow = ref<any>(null)
 function openUnload(row: any) {
   currentRow.value = row
   opTime.value = Date.now()
+  // 默认经手人 = 当前登录用户（人，不是角色）
+  const me = Number((useAuthStore().user as any)?.user_id) || 0
+  unloadPersonId.value = me > 0 && userOptions.value.some((u) => u.value === me) ? me : null
   showUnload.value = true
 }
 
 async function doUnload() {
   const person = userOptions.value.find((u) => u.value === unloadPersonId.value)
+  if (!person) { message.error('请选择经手人'); return }
   try {
     await asnApi.unload([{
       id: currentRow.value.id,
       unload_time: new Date(opTime.value).toISOString(),
-      unload_person_id: person?.value || 0,
-      unload_person: person?.label || ''
+      unload_person_id: person.value,
+      unload_person: person.label
     }])
     message.success('卸货完成')
     showUnload.value = false
@@ -457,9 +462,13 @@ onMounted(async () => {
   try {
     const owners = await ownerApi.all()
     ownerOptions.value = owners.map((o: any) => ({ label: o.goods_owner_name, value: o.id }))
-    const users = await selectApi.users()
-    // /user/select-item 返回 FormSelectItem {code,comments,name,value}，用户名字段是 name
-    userOptions.value = users.map((u: any) => ({ label: u.name, value: u.id }))
+    // 经手人必须是「用户」而不是「角色」：一个角色下可以有多个用户，事后追责要落到人
+    // /user/select-user-item 返回 FormSelectItem {code,name(姓名),value(用户id),comments(账号)}
+    const users = await selectApi.userItems()
+    userOptions.value = users.map((u) => ({
+      label: u.comments ? `${u.name}（${u.comments}）` : u.name,
+      value: Number(u.value)
+    }))
     // SKU 下拉：用 stock sku-select 或 spu list；这里取 spu 列表展开
     const spus = await http.post('/spu/list', pageSearch({ pageIndex: 1, pageSize: 500 }))
     const skuList: any[] = []
