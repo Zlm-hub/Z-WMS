@@ -11,8 +11,9 @@
         <n-select
           v-model:value="form.stock_id"
           filterable
+          :consistent-menu-width="false"
           :options="stockOptions"
-          placeholder="选择仓库/库位/商品（序列号）"
+          placeholder="输入序列号/商品/库位搜索"
         />
       </n-form-item>
       <n-descriptions v-if="picked" :column="2" size="small" bordered style="margin-bottom: 12px">
@@ -64,6 +65,7 @@ import { computed, h, onMounted, reactive, ref } from 'vue'
 import { NAlert, NButton, NDescriptions, NDescriptionsItem, NForm, NFormItem, NInputNumber, NModal, NSelect, NSpace, NTag, createDiscreteApi } from 'naive-ui'
 import QueryTable from '@/components/QueryTable.vue'
 import { stocktakingApi } from '@/api'
+import { sortStockRows, stockOptionLabel } from '@/utils/stockOption'
 import http from '@/api/http'
 
 const { message, dialog } = createDiscreteApi(['message', 'dialog'])
@@ -153,10 +155,10 @@ async function openCreate() {
     const rows2 = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
     stockMap.value = {}
     stockOptions.value = []
-    for (const s of rows2) {
+    for (const s of sortStockRows(rows2)) {
       stockMap.value[s.id] = s
       stockOptions.value.push({
-        label: `${s.warehouse_name} / ${s.location_name} / ${s.spu_name} / ${s.sku_name}${s.series_number ? `（${s.series_number}）` : ''}`,
+        label: stockOptionLabel(s),
         value: s.id
       })
     }
@@ -220,10 +222,10 @@ onMounted(async () => {
   try {
     // /stock/select 返回带完整库存身份的行（含 goods_owner_id/is_freeze/series_number）
     const rows = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
-    for (const s of rows) {
+    for (const s of sortStockRows(rows)) {
       stockMap.value[s.id] = s
       stockOptions.value.push({
-        label: `${s.warehouse_name} / ${s.location_name} / ${s.spu_name} / ${s.sku_name}${s.series_number ? `（${s.series_number}）` : ''}`,
+        label: stockOptionLabel(s),
         value: s.id
       })
     }

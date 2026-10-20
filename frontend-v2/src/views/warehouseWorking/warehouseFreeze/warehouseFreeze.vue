@@ -18,8 +18,9 @@
         <n-select
           v-model:value="form.stock_id"
           filterable
+          :consistent-menu-width="false"
           :options="stockOptions"
-          :placeholder="form.job_type ? '选择可冻结库存' : '选择已冻结库存'"
+          :placeholder="form.job_type ? '输入序列号/商品搜索可冻结库存' : '输入序列号/商品搜索已冻结库存'"
         />
       </n-form-item>
       <n-alert v-if="picked" type="info" style="margin-bottom: 12px">
@@ -40,6 +41,7 @@ import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import { NAlert, NButton, NForm, NFormItem, NModal, NRadio, NRadioGroup, NSelect, NSpace, NTag, createDiscreteApi } from 'naive-ui'
 import QueryTable from '@/components/QueryTable.vue'
 import { stockfreezeApi } from '@/api'
+import { sortStockRows, stockOptionLabel } from '@/utils/stockOption'
 import http from '@/api/http'
 
 const { message } = createDiscreteApi(['message', 'dialog'])
@@ -70,8 +72,8 @@ watch(() => form.job_type, () => { form.stock_id = null; refreshOptions() })
 
 function refreshOptions() {
   const pool = form.job_type ? availStocks.value : frozenStocks.value
-  stockOptions.value = pool.map((s) => ({
-    label: `${s.warehouse_name} / ${s.location_name} / ${s.spu_name} / ${s.sku_name}${s.series_number ? `（${s.series_number}）` : ''}`,
+  stockOptions.value = sortStockRows(pool).map((s) => ({
+    label: stockOptionLabel(s),
     value: s.id
   }))
 }
