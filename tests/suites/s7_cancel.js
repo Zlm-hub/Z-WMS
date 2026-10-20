@@ -59,9 +59,13 @@ module.exports = async function run(ctx) {
   let rows = await rowsOf(rowA.dispatch_no)
   const pickAfterConfirm = await api.call('GET', `/dispatchlist/pick-list?dispatch_id=${rows[0].id}`, undefined, 'pick-list')
   const stockLocked = await api.stockBySerial(sn1)
+  // 失败时把可见行的实际数量带上，便于区分「锁没落库」还是「可用量算错」
+  const lockDiag = stockLocked
+    ? `（qty=${stockLocked.qty} avail=${stockLocked.qty_available} freeze=${stockLocked.is_freeze}）`
+    : ''
   report.step(S, 'A/confirm-lock', rows.every((r) => r.dispatch_status === 2 && r.lock_qty === 1)
     && Array.isArray(pickAfterConfirm) && pickAfterConfirm.length > 0 && !stockLocked,
-    `status=2 lock=1 picklist=${pickAfterConfirm?.length} 库存可见=${!!stockLocked}（锁定应隐藏）`)
+    `status=2 lock=1 picklist=${pickAfterConfirm?.length} 库存可见=${!!stockLocked}${lockDiag}（锁定应隐藏）`)
 
   await api.call('POST', '/dispatchlist/cancel-order', { dispatch_no: rowA.dispatch_no, dispatch_status: 2 }, 'cancel-lock')
   await sleep(500)
