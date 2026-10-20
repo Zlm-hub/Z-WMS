@@ -52,6 +52,21 @@ module.exports = async function run(ctx) {
   const locOk = locs.isSuccess === true && Array.isArray(locs.data) && locs.data.every((l) => l.id > 0)
   report.step(S, 'get/goodslocation/all(含真实id)', locOk, locOk ? `locations=${locs.data.length}` : '存在 id=0 的库位行（上游坑）')
 
+  // ---------- 人员下拉必须是「用户」而非「角色」（经手人等字段的回归） ----------
+  // 背景：/user/select-item 返回的是角色（code=user_role），曾被误当作人员下拉数据源，
+  // 导致「经手人」列出 admin/test 这种角色名，事后无法追到具体是谁经手
+  const userItems = await api.req('GET', '/user/select-user-item')
+  const pickItems = Array.isArray(userItems.data) ? userItems.data : []
+  const allAreUser = pickItems.length > 0
+    && pickItems.every((i) => i.code === 'user' && /^\d+$/.test(String(i.value)) && !!i.name)
+  const userTotals = (await api.req('POST', '/user/list', { pageIndex: 1, pageSize: 1, searchValue: '' })).data?.totals
+  report.step(S, 'get/user/select-user-item(用户非角色)', allAreUser && pickItems.length === userTotals,
+    allAreUser ? `users=${pickItems.length}/${userTotals} ${pickItems.map((i) => i.name).join(' / ')}` : '返回为空或 code 不是 user')
+
+  const roleItems = await api.req('GET', '/user/select-item')
+  const roleOk = Array.isArray(roleItems.data) && roleItems.data.every((i) => i.code === 'user_role')
+  report.step(S, 'get/user/select-item(角色，契约不变)', roleOk, roleOk ? `roles=${roleItems.data.length}` : '角色下拉契约被改动')
+
   // ---------- 角色权限可改（回归：曾因前端只走 POST + 后端「已分配」校验，导致角色只能授权一次） ----------
   const roleName = cfg.tag + '-RM'
   let tempRoleId = 0
