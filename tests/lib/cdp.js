@@ -40,23 +40,56 @@ class Browser {
     const ver = `http://127.0.0.1:${this.cfg.cdpPort}/json/version`
     let existing = null
     try { existing = await httpGetJson(ver) } catch { /* not running */ }
-    if (!existing) {
-      this.profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zwms_prof_'))
-      this.chrome = spawn(this.cfg.chromePath, [
-        this.cfg.headless ? '--headless=new' : '',
-        '--disable-gpu', '--no-first-run', '--no-default-browser-check',
-        `--remote-debugging-port=${this.cfg.cdpPort}`,
-        `--user-data-dir=${this.profileDir}`,
-        'about:blank'
-      ].filter(Boolean), { stdio: 'ignore' })
-      // 等调试端口就绪
-      let ok = false
-      for (let i = 0; i < 30; i++) {
-        try { await httpGetJson(ver); ok = true; break } catch { await sleep(300) }
-      }
-      if (!ok) throw new Error('chrome debug port not ready: ' + this.cfg.cdpPort)
+    if (existing) {
+      // 端口上已有实例：能连上就复用，连不上（僵死/半初始化）就走自建流程
+      try { await this.attachPage(); return } catch { /* fallthrough */ }
     }
-    await this.attachPage()
+    // CI 冷机首次拉起 Chrome 偶发超过 9s，且进程可能直接崩掉；
+    // 这里改成「短探测 + 早退感知 + 清理重试一次」，避免整轮套件因端口没起来而 abort
+    let lastErr = null
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        await this.spawnChrome(ver)
+        await this.attachPage()
+        return
+      } catch (e) {
+        lastErr = e
+        this.killChrome()
+        if (attempt < 2) await sleep(1200)
+      }
+    }
+    throw new Error(`chrome debug port not ready: ${this.cfg.cdpPort}（重试后仍失败：${lastErr && lastErr.message}）`)
+  }
+
+  /** 拉起 headless Chrome 并等调试端口就绪 */
+  async spawnChrome(ver) {
+    this.profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zwms_prof_'))
+    this.chrome = spawn(this.cfg.chromePath, [
+      this.cfg.headless ? '--headless=new' : '',
+      '--disable-gpu', '--no-first-run', '--no-default-browser-check',
+      '--disable-dev-shm-usage',
+      `--remote-debugging-port=${this.cfg.cdpPort}`,
+      `--user-data-dir=${this.profileDir}`,
+      'about:blank'
+    ].filter(Boolean), { stdio: 'ignore' })
+    for (let i = 0; i < 60; i++) {
+      // 进程已经退出（崩溃/参数不被接受）就没必要再等满 30s
+      if (this.chrome.exitCode !== null) break
+      try { await httpGetJson(ver); return } catch { await sleep(500) }
+    }
+    throw new Error('spawn 后调试端口未就绪')
+  }
+
+  /** 强杀自建实例并清掉临时 profile */
+  killChrome() {
+    if (this.chrome) {
+      try { this.chrome.kill('SIGKILL') } catch { /* ignore */ }
+      this.chrome = null
+    }
+    if (this.profileDir) {
+      try { fs.rmSync(this.profileDir, { recursive: true, force: true }) } catch { /* ignore */ }
+      this.profileDir = null
+    }
   }
 
   async attachPage() {

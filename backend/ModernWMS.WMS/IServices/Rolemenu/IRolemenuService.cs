@@ -56,6 +56,14 @@ namespace ModernWMS.WMS.IServices
         Task<int> GetRoleIdByRoleNameAsync(string role_name, long tenant_id);
 
         /// <summary>
+        /// get role name by user role id
+        /// </summary>
+        /// <param name="userrole_id">user role id</param>
+        /// <param name="tenant_id">tenant id</param>
+        /// <returns></returns>
+        Task<string> GetRoleNameByIdAsync(int userrole_id, long tenant_id);
+
+        /// <summary>
         /// update a record
         /// </summary>
         /// <param name="viewModel">args</param>

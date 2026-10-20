@@ -9,7 +9,8 @@
           style="width: 240px"
           @update:value="loadRoleMenu"
         />
-        <n-button type="primary" :disabled="!selectedRole" :loading="saving" @click="save">保存授权</n-button>
+        <n-button type="primary" :disabled="!selectedRole || isSuperAdmin" :loading="saving" @click="save">保存授权</n-button>
+        <n-text v-if="isSuperAdmin" depth="3">超级管理员(admin)角色的权限不可修改</n-text>
       </n-space>
       <n-tree
         v-if="menuTree.length"
@@ -30,24 +31,36 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { NCard, NSelect, NButton, NTree, NEmpty, NSpace, createDiscreteApi } from 'naive-ui'
+import { computed, onMounted, ref } from 'vue'
+import { NCard, NSelect, NButton, NTree, NEmpty, NSpace, NText, createDiscreteApi } from 'naive-ui'
 import { menuApi, userroleApi } from '@/api'
 import { MODULE_LABELS } from '@/router/dynamic'
 import { menuLabel } from '@/constants/menuNames'
 
 const { message } = createDiscreteApi(['message'])
-const roleOptions = ref<Array<{ label: string; value: number }>>([])
+const roleOptions = ref<Array<{ label: string; value: number; disabled?: boolean }>>([])
 const selectedRole = ref<number | null>(null)
 const menuTree = ref<Array<{ key: number | string; label: string; children?: any[] }>>([])
 const checkedKeys = ref<Array<number | string>>([])
 const menuNameMap = ref<Record<number, string>>({})
 const saving = ref(false)
 
+/** 超级管理员角色名：与后端一致，权限不可通过界面修改 */
+const SUPER_ADMIN_ROLE_NAME = 'admin'
+const isSuperAdmin = computed(() => {
+  const role = roleOptions.value.find((r) => r.value === selectedRole.value)
+  return (role?.label || '').trim().toLowerCase() === SUPER_ADMIN_ROLE_NAME
+})
+
 onMounted(async () => {
   try {
     const roles = await userroleApi.all()
-    roleOptions.value = roles.map((r: any) => ({ label: r.role_name, value: r.id }))
+    roleOptions.value = roles.map((r: any) => ({
+      label: r.role_name,
+      value: r.id,
+      // 超级管理员角色不允许在界面上改权限（否则有把自己锁死的风险）
+      disabled: String(r.role_name || '').trim().toLowerCase() === SUPER_ADMIN_ROLE_NAME
+    }))
     const menus = await menuApi.menus()
     // 按 module 分组成树
     const groups = new Map<string, any[]>()
@@ -79,13 +92,15 @@ async function loadRoleMenu(roleId: number) {
 }
 
 async function save() {
-  if (!selectedRole.value) return
+  if (!selectedRole.value || isSuperAdmin.value) return
   saving.value = true
   try {
     const menuIds = checkedKeys.value.filter((k) => typeof k === 'number') as number[]
     // 后端契约：RolemenuBothViewModel { userrole_id, role_name, detailList: [{menu_id, menu_name, authority}] }
+    // 统一走 PUT：后端以 menu_id 为准做全量对齐（新增/更新/移除），第一次授权也适用，
+    // 这样不再撞 POST 的「该角色已分配权限」重复校验
     const roleName = roleOptions.value.find((r) => r.value === selectedRole.value)?.label || ''
-    await menuApi.save({
+    await menuApi.update({
       userrole_id: selectedRole.value,
       role_name: roleName,
       detailList: menuIds.map((id) => ({
