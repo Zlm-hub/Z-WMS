@@ -56,7 +56,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { NLayout, NLayoutSider, NLayoutHeader, NLayoutContent, NMenu, NBreadcrumb, NBreadcrumbItem, NSpace, NButton, NIcon, NDropdown, NText, createDiscreteApi } from 'naive-ui'
 import { PersonOutline, LogOutOutline } from '@vicons/ionicons5'
 import { useAuthStore } from '@/stores/auth'
-import { MODULE_LABELS, menuStore } from '@/router/dynamic'
+import { MODULE_LABELS, menuStore, resetMenus } from '@/router/dynamic'
 import { menuLabel } from '@/constants/menuNames'
 
 interface MenuNode {
@@ -147,6 +147,7 @@ const userOptions = [{ label: '退出登录', key: 'logout', icon: () => h(NIcon
 
 function onUserAction(key: string) {
   if (key === 'logout') {
+    resetMenus(router)
     auth.logout()
     message.success('已退出')
     router.push('/login')

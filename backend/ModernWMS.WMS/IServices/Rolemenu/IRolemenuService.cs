@@ -48,6 +48,14 @@ namespace ModernWMS.WMS.IServices
         Task<List<MenuViewModel>> GetMenusByRoleId(int userrole_id);
 
         /// <summary>
+        /// get user role id by role name
+        /// </summary>
+        /// <param name="role_name">role name</param>
+        /// <param name="tenant_id">tenant id</param>
+        /// <returns></returns>
+        Task<int> GetRoleIdByRoleNameAsync(string role_name, long tenant_id);
+
+        /// <summary>
         /// update a record
         /// </summary>
         /// <param name="viewModel">args</param>

@@ -10,7 +10,10 @@ namespace ModernWMS.Core.Controller
     /// <summary>
     /// base controller
     /// </summary>
-    //[Authorize] 
+    // 全站接口默认要求登录：没有这一行时 HttpContext.User 永远不会被填充，
+    // CurrentUser 会静默回落成默认 admin，角色权限（菜单过滤）也就完全失效。
+    // 匿名接口（登录/刷新令牌/注册等）在各 action 上标 [AllowAnonymous]。
+    [Authorize]
     [Produces("application/json")]
     public class BaseController : ControllerBase
     {
@@ -23,8 +26,8 @@ namespace ModernWMS.Core.Controller
             {
                 if (User != null && User.Claims.ToList().Count > 0)
                 {
-                    var Claim = User.Claims.First(claim => claim.Type == ClaimValueTypes.Json);
-                    return Claim == null ? new CurrentUser() : JsonHelper.DeserializeObject<CurrentUser>(Claim.Value);
+                    var Claim = User.Claims.FirstOrDefault(claim => claim.Type == ClaimValueTypes.Json);
+                    return Claim == null ? new CurrentUser() : JsonHelper.DeserializeObject<CurrentUser>(Claim.Value) ?? new CurrentUser();
                 }
                 else
                 {

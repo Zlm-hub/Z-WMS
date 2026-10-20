@@ -208,6 +208,24 @@ namespace ModernWMS.WMS.Services
             }
             return new List<MenuViewModel>();
         }
+
+        /// <summary>
+        /// get user role id by role name (used when only role name is present in JWT claims)
+        /// </summary>
+        /// <param name="role_name">role name</param>
+        /// <param name="tenant_id">tenant id</param>
+        /// <returns></returns>
+        public async Task<int> GetRoleIdByRoleNameAsync(string role_name, long tenant_id)
+        {
+            if (string.IsNullOrWhiteSpace(role_name))
+            {
+                return 0;
+            }
+            var Userroles = _dBContext.GetDbSet<UserroleEntity>();
+            var role = await Userroles.AsNoTracking()
+                                      .FirstOrDefaultAsync(t => t.role_name == role_name && t.tenant_id == tenant_id);
+            return role == null ? 0 : role.id;
+        }
         /// <summary>
         /// add a new record
         /// </summary>
