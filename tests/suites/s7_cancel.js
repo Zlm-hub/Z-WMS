@@ -58,20 +58,21 @@ module.exports = async function run(ctx) {
   await confirmOrder(rowA.dispatch_no)
   let rows = await rowsOf(rowA.dispatch_no)
   const pickAfterConfirm = await api.call('GET', `/dispatchlist/pick-list?dispatch_id=${rows[0].id}`, undefined, 'pick-list')
-  const stockLocked = await api.stockBySerial(sn1)
-  // 失败时把可见行的实际数量带上，便于区分「锁没落库」还是「可用量算错」
-  const lockDiag = stockLocked
-    ? `（qty=${stockLocked.qty} avail=${stockLocked.qty_available} freeze=${stockLocked.is_freeze}）`
-    : ''
+  // 拣货分配在 qty_available 并列的多条库存间不保证顺序（各库返回行序不同：postgres 常锁 sn2），
+  // 所以以「实际被分配的序列号」为准断言锁定不可见，不能假定必然锁 sn1
+  const pickSerials = (pickAfterConfirm || []).map((p) => p.series_number).filter(Boolean)
+  const lockedSerial = pickSerials[0]
+  const ownStock = pickSerials.length > 0 && pickSerials.every((s) => td.serials.includes(s))
+  const stockLocked = lockedSerial ? await api.stockBySerial(lockedSerial) : null
   report.step(S, 'A/confirm-lock', rows.every((r) => r.dispatch_status === 2 && r.lock_qty === 1)
-    && Array.isArray(pickAfterConfirm) && pickAfterConfirm.length > 0 && !stockLocked,
-    `status=2 lock=1 picklist=${pickAfterConfirm?.length} 库存可见=${!!stockLocked}${lockDiag}（锁定应隐藏）`)
+    && ownStock && !stockLocked,
+    `status=2 lock=1 picklist=${pickSerials.length} 锁定序列=${lockedSerial} 自建库存=${ownStock} 库存可见=${!!stockLocked}（锁定应隐藏）`)
 
   await api.call('POST', '/dispatchlist/cancel-order', { dispatch_no: rowA.dispatch_no, dispatch_status: 2 }, 'cancel-lock')
   await sleep(500)
   rows = await rowsOf(rowA.dispatch_no)
   const pickAfterCancel = await api.call('GET', `/dispatchlist/pick-list?dispatch_id=${rows[0].id}`, undefined, 'pick-list2')
-  const stockReleased = await api.stockBySerial(sn1)
+  const stockReleased = await api.stockBySerial(lockedSerial || sn1)
   report.step(S, 'A/cancel-release', rows.every((r) => r.dispatch_status === 1 && r.lock_qty === 0)
     && Array.isArray(pickAfterCancel) && pickAfterCancel.length === 0 && stockReleased && stockReleased.qty === 1,
     `status=1 lock=0 picklist=${pickAfterCancel?.length} 库存回池 qty=${stockReleased?.qty}`)
@@ -109,9 +110,11 @@ module.exports = async function run(ctx) {
   await api.call('POST', '/dispatchlist/cancel-order', { dispatch_no: b.dispatch_no, dispatch_status: 2 }, 'cancel-lock2')
   await sleep(500)
   b = (await rowsOf(rowB.dispatch_no))[0]
-  const stockB = await api.stockBySerial(sn2)
-  report.step(S, 'B/cancel-lock', b.dispatch_status === 1 && b.lock_qty === 0 && stockB && stockB.qty === 1,
-    `status=${b.dispatch_status} lock=${b.lock_qty} 库存回池 qty=${stockB?.qty}`)
+  const poolBack = []
+  for (const sn of td.serials) poolBack.push(await api.stockBySerial(sn))
+  const poolOk = poolBack.every((s) => s && s.qty === 1)
+  report.step(S, 'B/cancel-lock', b.dispatch_status === 1 && b.lock_qty === 0 && poolOk,
+    `status=${b.dispatch_status} lock=${b.lock_qty} 库存回池 ${poolBack.map((s) => `${s?.series_number}:${s?.qty}`).join(' ')}`)
 
   await api.call('DELETE', `/dispatchlist?dispatch_no=${encodeURIComponent(b.dispatch_no)}`, undefined, 'delete-order')
   await sleep(500)
