@@ -65,6 +65,7 @@ import { h, onMounted, reactive, ref } from 'vue'
 import { NAlert, NButton, NDataTable, NDescriptions, NDescriptionsItem, NDivider, NForm, NFormItem, NInputNumber, NModal, NRadio, NRadioGroup, NSpace, NSelect, NSpin, NTag, createDiscreteApi, type DataTableColumns } from 'naive-ui'
 import QueryTable from '@/components/QueryTable.vue'
 import { stockprocessApi } from '@/api'
+import { sortStockRows, stockOptionLabel } from '@/utils/stockOption'
 import http from '@/api/http'
 
 const { message, dialog } = createDiscreteApi(['message', 'dialog'])
@@ -143,8 +144,9 @@ const detailCols: DataTableColumns = [
       h(NSelect, {
         value: row.stock_id,
         options: stockOptions.value,
-        placeholder: '选择仓库/库位/商品（序列号）',
+        placeholder: '输入序列号/商品/库位搜索',
         filterable: true,
+        'consistent-menu-width': false,
         'onUpdate:value': (v: number) => { row.stock_id = v; applyStock(row) }
       })
   },
@@ -214,10 +216,10 @@ async function openCreate() {
     const rows2 = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
     stockMap.value = {}
     stockOptions.value = []
-    for (const s of rows2) {
+    for (const s of sortStockRows(rows2)) {
       stockMap.value[s.id] = s
       stockOptions.value.push({
-        label: `${s.warehouse_name} / ${s.location_name} / ${s.spu_name} / ${s.sku_name}${s.series_number ? `（${s.series_number}）` : ''}`,
+        label: stockOptionLabel(s),
         value: s.id
       })
     }
@@ -320,10 +322,10 @@ onMounted(async () => {
   try {
     // /stock/select 返回带完整库存身份的行（含 goods_owner_id/series_number/expiry_date 等）
     const rows = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
-    for (const s of rows) {
+    for (const s of sortStockRows(rows)) {
       stockMap.value[s.id] = s
       stockOptions.value.push({
-        label: `${s.warehouse_name} / ${s.location_name} / ${s.spu_name} / ${s.sku_name}${s.series_number ? `（${s.series_number}）` : ''}`,
+        label: stockOptionLabel(s),
         value: s.id
       })
     }
