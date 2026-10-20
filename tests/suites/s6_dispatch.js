@@ -135,6 +135,11 @@ module.exports = async function run(ctx) {
   const after = await api.stockBySerial(sn)
   rec('delivery', st6 === '待签收' && row6?.dispatch_status === 6 && row6?.actual_qty === 1 && (!after || after.qty === 0),
     `ui=${st6} api_status=${row6?.dispatch_status} actual_qty=${row6?.actual_qty} stock(${sn}) ${before?.qty}->${after ? after.qty : 'gone'}`)
+  // 出库发运必须落库存流水（job_type=6，负数，来源单据=出库单主键）
+  const outAdj = row6 ? await api.adjustsBySource(6, row6.id) : []
+  rec('delivery-adjust',
+    outAdj.length === 1 && outAdj[0].qty === -1 && !!outAdj[0].job_code && outAdj[0].series_number === sn,
+    `job_type=6 流水 ${outAdj.length} 条 qty=${outAdj[0]?.qty} code=${outAdj[0]?.job_code || '-'}`)
   await shot('04_delivered.png')
 
   // ---- 8. 签收 ----

@@ -43,7 +43,14 @@ module.exports = async function run(ctx) {
     // 前置先备齐第二库位：必须在导航进移库页之前——页面 onMounted 只拉一次库位下拉，
     // 进页后再建库位不会出现在选项里（CI 首跑暴露）
     const locs = await api.locations()
-    let dest = locs.find((l) => l.id !== 1) // A-01-02
+    const src0 = await api.stockBySerial(T2)
+    const srcLoc = locs.find((l) => l.id === src0?.goods_location_id)
+
+    // 目标库位必须「库位名唯一」：开发库中可能同时存在多个叫 A-01-01 的库位（烟测仓 / 智造一号仓），
+    // 而 pickOption 按文本 contains 匹配第一个，很容易选中来源库位本身 → 页面弹
+    // 「移出/移入库位不能相同」、建单静默失败，而 location_name 前后一致又让断言假绿（真实踩过）
+    const nameCount = locs.reduce((m, l) => { m[l.location_name] = (m[l.location_name] || 0) + 1; return m }, {})
+    let dest = locs.find((l) => l.id !== srcLoc?.id && nameCount[l.location_name] === 1)
     if (!dest) {
       // 全新种子库只有 1 个库位：自建第二个（仅 location_name 有唯一约束）
       const d = await api.req('POST', '/goodslocation', {
@@ -53,18 +60,22 @@ module.exports = async function run(ctx) {
         location_heigth: 10, location_volume: 1000, location_load: 100,
         roadway_number: '', shelf_number: '', is_valid: true
       })
-      if (!d.isSuccess) report.abort(S, 'move-setup', 'seed 只有 1 个库位且自建失败: ' + d.errorMessage)
+      if (!d.isSuccess) report.abort(S, 'move-setup', '自建第二库位失败: ' + d.errorMessage)
       dest = (await api.locations()).find((l) => l.location_name === 'A-01-RT')
       report.step(S, 'move-setup/seed-loc', !!dest, '自建第二库位 A-01-RT')
     }
+    if (!srcLoc || !dest) report.abort(S, 'move-setup/loc', `来源库位=${srcLoc?.id} 目标库位=${dest?.id}`)
+
     await ui.gotoPage('#/warehouseMove')
 
-    for (const [destId, destName, leg] of [[dest.id, dest.location_name, 'go'], [1, 'A-01-01', 'back']]) {
+    // 库位下拉 label 是「仓库 / 库位」（warehouseMove.vue 的 destOptions），按完整 label 匹配才唯一
+    const locLabel = (l) => `${l.warehouse_name} / ${l.location_name}`
+    for (const [leg, target] of [['go', dest], ['back', srcLoc]]) {
       await ui.clickText('body', '新建移库', false)
       await sleep(cfg.stepWait)
       let r = await ui.pickOption('.n-modal', 0, T2)
       if (r !== 'OK') report.abort(S, `move-${leg}-pick-src`, r)
-      r = await ui.pickOption('.n-modal', 1, destName)
+      r = await ui.pickOption('.n-modal', 1, locLabel(target))
       if (r !== 'OK') report.abort(S, `move-${leg}-pick-dest`, r)
       if (leg === 'go') await b.screenshot(cfg.outDir + '/s5_move.png')
       await ui.clickText('.n-modal', '提交')
@@ -75,8 +86,29 @@ module.exports = async function run(ctx) {
       await ui.clickDialog('确认过账', true)
       await sleep(postWait + 500)
       const s = await api.stockBySerial(T2)
-      report.step(S, `move-${leg}`, s?.location_name === destName,
-        `location=${s?.location_name} 期望=${destName}`)
+      report.step(S, `move-${leg}`, s?.goods_location_id === target.id,
+        `loc=${s?.warehouse_name}/${s?.location_name}(${s?.goods_location_id}) 期望=${locLabel(target)}(${target.id})`)
+
+      // 移库必须落库存流水（job_type=4：来源库位 -N、目标库位 +N 各一条）。
+      // 上游 Confirm 全程不碰 stockadjust，这类「改了库存却查不到痕迹」的作业是本轮要补的
+      const mvRows = (await api.list('stockmove')).data.rows
+        .filter((m) => m.series_number === T2 && m.move_status === 1)
+      const mv = mvRows.sort((a, b) => b.id - a.id)[0]
+      const adj = mv ? await api.adjustsBySource(4, mv.id) : []
+      report.step(S, `move-${leg}-adjust`,
+        !!mv && adj.length === 2
+          && adj.some((x) => x.qty === -mv.qty) && adj.some((x) => x.qty === mv.qty)
+          && new Set(adj.map((x) => x.goods_location_id)).size === 2,
+        `move=${mv?.id ?? '缺失'} job_type=4 流水 ${adj.length} 条 qty=[${adj.map((x) => x.qty).join(',')}] loc=[${adj.map((x) => x.location_name).join(',')}]`)
+
+      // 关键词检索（后端 PageSearch 原本没有 searchValue 字段，列表页搜索框一直是摆设）
+      const byKw = mv ? await api.req('POST', '/stockadjust/list', {
+        pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: mv.job_code
+      }) : null
+      const kwRows = byKw?.data?.rows || []
+      report.step(S, `move-${leg}-adjust-search`,
+        kwRows.length >= 2 && kwRows.every((x) => x.job_code === mv.job_code),
+        `关键词=${mv?.job_code} 命中 ${kwRows.length} 条，单号集合=[${[...new Set(kwRows.map((x) => x.job_code))].join(',')}]`)
     }
   }
 

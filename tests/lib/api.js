@@ -64,6 +64,15 @@ class Api {
     const d = await this.req('GET', '/goodslocation/all')
     return d.data || []
   }
+  /** 库存调整流水全量（pageSize 2000，同 stockAvail 的理由） */
+  async adjustRows() {
+    const d = await this.req('POST', '/stockadjust/list', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' })
+    return d.data?.rows || []
+  }
+  /** 按「作业类型 + 来源单据」筛流水 */
+  async adjustsBySource(jobType, sourceId) {
+    return (await this.adjustRows()).filter((r) => r.job_type === jobType && r.source_table_id === sourceId)
+  }
 }
 
 module.exports = { Api }
