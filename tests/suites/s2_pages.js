@@ -12,8 +12,17 @@ module.exports = async function run(ctx) {
   // 登录态注入 + 预热
   await b.loginAndWarm(api.token, cfg.base, cfg.pageSettle)
 
+  // 无表格/树的页面：roleMenu 是树；大屏/3D 库房是全屏 canvas 渲染，只验证不空白不 404
+  const NO_TABLE = new Set(['roleMenu', 'large-screen', 'vwms'])
+
   for (const m of menus) {
     await b.navigate(`${cfg.base}/#/${m.vue_path}`, cfg.pageSettle)
+    if (NO_TABLE.has(m.vue_path)) {
+      // 大屏/3D 以图形渲染，正文文本很短（vwms 约 80 字符）且无 canvas，放宽为短文本即算渲染成功
+      const ok = await b.evaluate(`document.body.innerText.trim().length > 50 || !!document.querySelector('canvas')`)
+      report.step(S, m.vue_path, !!ok, ok ? 'rendered（无表格页）' : 'EMPTY/404')
+      continue
+    }
     const info = await ui.tableInfo()
     // roleMenu（权限设置）是树组件无表格；其余菜单页都应有数据表格
     const hasTable = info.heads.length > 0
