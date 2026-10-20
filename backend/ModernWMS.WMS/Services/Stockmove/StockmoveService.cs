@@ -336,7 +336,16 @@ namespace ModernWMS.WMS.Services
             entity.move_status = 1;
             entity.last_update_time = now_time;
             var orig_stock = await stock_DBSet.FirstOrDefaultAsync(t => t.goods_owner_id == entity.goods_owner_id && t.series_number == entity.series_number && t.goods_location_id == entity.orig_goods_location_id && t.sku_id == entity.sku_id && t.expiry_date == entity.expiry_date && t.price == entity.price && t.putaway_date == entity.putaway_date);
-            var dest_stock = await stock_DBSet.FirstOrDefaultAsync(t => t.goods_owner_id == entity.goods_owner_id && t.series_number == entity.series_number && t.goods_location_id == entity.dest_googs_location_id && t.sku_id != entity.sku_id && t.expiry_date == entity.expiry_date && t.price == entity.price && t.putaway_date == entity.putaway_date);
+            // 目标行按「货主 + 序列号 + 目标库位 + 同 SKU + 效期 + 价格 + 入库日期」定位。
+            // 上游此处误写成 t.sku_id != entity.sku_id：不仅合并永远命中不了（每次确认都新建一行，
+            // 同一批货被拆成多条重复库存行，下游按 7 键 FirstOrDefault 会误判库存不足），
+            // 还可能在「同库位同价格同入库日期的另一个 SKU」上把数量加错，属于账实不符级笔误
+            var dest_stock = await stock_DBSet.FirstOrDefaultAsync(t => t.goods_owner_id == entity.goods_owner_id && t.series_number == entity.series_number && t.goods_location_id == entity.dest_googs_location_id && t.sku_id == entity.sku_id && t.expiry_date == entity.expiry_date && t.price == entity.price && t.putaway_date == entity.putaway_date);
+            // 建单时校验过目标冻结，这里再拦一次：建单与确认之间目标行可能被冻结
+            if (dest_stock != null && dest_stock.is_freeze == true)
+            {
+                return (false, _stringLocalizer["dest_stock_freeze"]);
+            }
             if (orig_stock != null)
             {
                 if (orig_stock.qty == entity.qty)
