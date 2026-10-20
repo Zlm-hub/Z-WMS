@@ -934,6 +934,9 @@ namespace ModernWMS.WMS.Services
             // 获取已上架数小于分拣数的分拣记录
             var sortEntities = await Asnsorts.Where(t => t.asn_id == viewModels[0].asn_id && t.sorted_qty > t.putaway_qty).ToListAsync();
 
+            // 入库上架同样改 stock.qty，必须留库存流水（上游只写 stock 不写 stockadjust）
+            var adjust_DBSet = _dBContext.GetDbSet<StockadjustEntity>();
+
             foreach (var viewModel in viewModels)
             {
                 // 根据sn码，将本次上架数量反写到分拣记录中。如果sn码是空的，则分摊进去
@@ -999,6 +1002,22 @@ namespace ModernWMS.WMS.Services
                     stockEntity.qty += viewModel.putaway_qty;
                     stockEntity.last_update_time = DateTime.Now;
                 }
+                // 入库上架落库存流水（正数），与库存变更同一事务提交
+                adjust_DBSet.Add(StockadjustWriter.Build(
+                    job_code: entity.asn_no,
+                    job_type: StockadjustWriter.JOB_TYPE_PUTAWAY,
+                    source_table_id: entity.id,
+                    sku_id: entity.sku_id,
+                    goods_owner_id: entity.goods_owner_id,
+                    goods_location_id: viewModel.goods_location_id,
+                    qty: viewModel.putaway_qty,
+                    series_number: viewModel.series_number,
+                    expiry_date: expiry_date,
+                    price: entity.price,
+                    putaway_date: putaway_date,
+                    creator: currentUser.user_name,
+                    tenant_id: currentUser.tenant_id,
+                    now_time: DateTime.Now));
             }
             var qty = await _dBContext.SaveChangesAsync();
             if (qty > 0)

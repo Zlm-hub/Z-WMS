@@ -113,6 +113,15 @@ namespace ModernWMS.WMS.Services
                             putaway_date = sj.putaway_date,
                         };
             query = query.Where(queries.AsExpression<StockadjustViewModel>());
+            // 关键词：来源单号 / 商品名 / 规格名 / 经手人 任一命中（前端 placeholder 承诺的「商品/来源单号」）
+            var keyword = (pageSearch.searchValue ?? string.Empty).Trim();
+            if (keyword.Length > 0)
+            {
+                query = query.Where(t => t.job_code.Contains(keyword)
+                                      || t.spu_name.Contains(keyword)
+                                      || t.sku_name.Contains(keyword)
+                                      || t.creator.Contains(keyword));
+            }
             int totals = await query.CountAsync();
             var list = await query.OrderByDescending(t => t.create_time)
                        .Skip((pageSearch.pageIndex - 1) * pageSearch.pageSize)

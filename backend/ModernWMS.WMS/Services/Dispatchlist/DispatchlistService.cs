@@ -1408,6 +1408,33 @@ namespace ModernWMS.WMS.Services
                 s.last_update_time = now_time;
                 stock_DBSet.Update(s);
             }
+            // 出库发运同样改 stock.qty，必须留库存流水（负数）。逐出库单落账，
+            // 这样「库存调整」页能按 dispatch_no / source_table_id 回溯到具体订单
+            var adjust_DBSet = _dBContext.GetDbSet<StockadjustEntity>();
+            foreach (var entity in entities)
+            {
+                var pick_groups = pick_datas
+                    .Where(t => t.dispatchlist_id == entity.id && t.picked_qty > 0)
+                    .GroupBy(t => new { t.goods_owner_id, t.goods_location_id, t.sku_id, t.series_number, t.expiry_date, t.price, t.putaway_date });
+                foreach (var pg in pick_groups)
+                {
+                    adjust_DBSet.Add(StockadjustWriter.Build(
+                        job_code: entity.dispatch_no,
+                        job_type: StockadjustWriter.JOB_TYPE_DELIVERY,
+                        source_table_id: entity.id,
+                        sku_id: pg.Key.sku_id,
+                        goods_owner_id: pg.Key.goods_owner_id,
+                        goods_location_id: pg.Key.goods_location_id,
+                        qty: -pg.Sum(t => t.picked_qty),
+                        series_number: pg.Key.series_number,
+                        expiry_date: pg.Key.expiry_date,
+                        price: pg.Key.price,
+                        putaway_date: pg.Key.putaway_date,
+                        creator: currentUser.user_name,
+                        tenant_id: currentUser.tenant_id,
+                        now_time: now_time));
+                }
+            }
             foreach (var pick in pick_datas)
             {
                 pick.is_update_stock = true;

@@ -381,6 +381,40 @@ namespace ModernWMS.WMS.Services
                 dest_stock.qty += entity.qty;
                 dest_stock.last_update_time = now_time;
             }
+            // 移库两侧各落一条库存流水（来源库位减、目标库位加），与库存变更同一事务提交。
+            // 上游这里一行都不写，导致「库存调整」页永远看不到移库，追溯只能靠 stockmove 单据表人工比对
+            var adjust_DBSet = _dBContext.GetDbSet<StockadjustEntity>();
+            adjust_DBSet.AddRange(
+                StockadjustWriter.Build(
+                    job_code: entity.job_code,
+                    job_type: StockadjustWriter.JOB_TYPE_MOVE,
+                    source_table_id: entity.id,
+                    sku_id: entity.sku_id,
+                    goods_owner_id: entity.goods_owner_id,
+                    goods_location_id: entity.orig_goods_location_id,
+                    qty: -entity.qty,
+                    series_number: entity.series_number,
+                    expiry_date: entity.expiry_date,
+                    price: entity.price,
+                    putaway_date: entity.putaway_date,
+                    creator: currentUser.user_name,
+                    tenant_id: currentUser.tenant_id,
+                    now_time: now_time),
+                StockadjustWriter.Build(
+                    job_code: entity.job_code,
+                    job_type: StockadjustWriter.JOB_TYPE_MOVE,
+                    source_table_id: entity.id,
+                    sku_id: entity.sku_id,
+                    goods_owner_id: entity.goods_owner_id,
+                    goods_location_id: entity.dest_googs_location_id,
+                    qty: entity.qty,
+                    series_number: entity.series_number,
+                    expiry_date: entity.expiry_date,
+                    price: entity.price,
+                    putaway_date: entity.putaway_date,
+                    creator: currentUser.user_name,
+                    tenant_id: currentUser.tenant_id,
+                    now_time: now_time));
             var saved = false;
             int res = 0;
             while (!saved)

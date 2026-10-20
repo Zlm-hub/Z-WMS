@@ -93,7 +93,13 @@ async function buildInboundStock(ctx, count, suiteName, tagOverride) {
     }], 'putaway/' + p.series_number)
   }
 
-  // 6. 核对库存落账
+  // 6. 入库上架必须落库存流水（job_type=5，正数，来源单据=ASN 主键）
+  const inAdj = await api.adjustsBySource(5, asnId)
+  report.step(S, 'putaway流水',
+    inAdj.length === count && inAdj.every((r) => r.qty === 1) && inAdj.every((r) => !!r.job_code),
+    `job_type=5 流水 ${inAdj.length} 条 job_code=${inAdj[0]?.job_code || '-'}`)
+
+  // 7. 核对库存落账
   await sleep(1000)
   const serials = pending.map((p) => p.series_number)
   const stocks = []
