@@ -17,8 +17,9 @@ frontend-v2/vite.config.ts.timestamp-*
 .DS_Store
 Thumbs.db
 
-# 运行时数据库（种子库除外——rebuild/seed/wms.db 必须入库）
+# 运行时数据库（种子库除外——rebuild/seed/ 下的种子必须入库）
 *.db
 *.db-shm
 *.db-wal
 !rebuild/seed/wms.db
+!rebuild/seed/wms_demo_mfg.db
