@@ -234,6 +234,8 @@ export const stockmoveApi = {
 }
 export const stockprocessApi = {
   list: (b: PageSearch) => list<Record<string, unknown>>('/stockprocess/list', b),
+  // GET /stockprocess?id= 返回 StockprocessWithDetailViewModel：source_detail_list / target_detail_list
+  get: (id: number) => getOne<Record<string, unknown>>('/stockprocess', id),
   create: (d: unknown) => create<number>('/stockprocess', d),
   update: (d: unknown) => update<unknown>('/stockprocess', d),
   remove: (id: number) => remove('/stockprocess', id),

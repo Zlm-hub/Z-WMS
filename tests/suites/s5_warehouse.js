@@ -129,6 +129,18 @@ module.exports = async function run(ctx) {
     report.step(S, 'proc-create', await ui.modalGone() && row?.process_status === false,
       `row0.process_status=${row?.process_status}（必须 false，上游 VM 默认 true 的坑）`)
 
+    // 明细查看：列表页只回主表字段，明细靠 GET /stockprocess?id= 单独取
+    await ui.clickText('.n-data-table', '查看明细', false)
+    await sleep(cfg.stepWait + 400)
+    const detailOk = await b.evaluate(`(() => {
+      const t = document.querySelector('.n-modal')?.innerText || ''
+      return t.includes('原料（过账扣减）') && t.includes('成品（过账增加）')
+        && t.includes('${T4}') && t.includes('${T1}')
+    })()`)
+    report.step(S, 'proc-detail', detailOk === true, `弹窗含原料/成品分区与 ${T4}/${T1} 明细=${detailOk}`)
+    await ui.clickText('.n-modal', '关闭')
+    await sleep(cfg.stepWait)
+
     await ui.clickText('.n-data-table', '确认加工', false)
     await sleep(cfg.stepWait)
     await ui.clickDialog('确认', true)
@@ -147,6 +159,37 @@ module.exports = async function run(ctx) {
     const produced = s1after?.qty === (t1Before?.qty ?? 1) + 1
     report.step(S, 'proc-adjust', consumed && produced && row?.adjust_status === true,
       `T4(${consumed ? '已消耗' : 'qty=' + s4after?.qty}) T1(${t1Before?.qty}->${s1after?.qty}) adjust=${row?.adjust_status}`)
+  }
+
+  // ============ 4b. 未确认加工不得直接过账（后端强制，不只是 UI 隐藏按钮） ============
+  {
+    const t2 = await api.stockBySerial(T2)
+    if (!t2) {
+      report.step(S, 'proc-guard/setup', false, 'T2 库存行不存在，无法构造未确认加工单')
+    } else {
+      const created = await api.req('POST', '/stockprocess', {
+        job_type: true,
+        process_status: false,
+        detailList: [{
+          sku_id: t2.sku_id, goods_owner_id: t2.goods_owner_id, goods_location_id: t2.goods_location_id,
+          series_number: t2.series_number, expiry_date: t2.expiry_date, price: t2.price, putaway_date: t2.putaway_date,
+          qty: 1, is_source: true,
+          spu_code: t2.spu_code ?? '', spu_name: t2.spu_name ?? '', sku_code: t2.sku_code ?? '', location_name: t2.location_name ?? ''
+        }]
+      })
+      const pid = created.data
+      const blocked = pid > 0 ? await api.req('PUT', `/stockprocess/adjustment-confirm?id=${pid}`) : {}
+      // 未确认加工的原料行会被计入可用量占用（StockService 的 pl = process_locked），
+      // 该行会退出「可用库存」池（sqlTitle='' 过滤 qty_available>0），要看真实数量需查 sqlTitle='all'
+      const rawRows = (await api.req('POST', '/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: 'all', searchValue: '' })).data?.rows || []
+      const locked = rawRows.find((r) => r.series_number === T2) || null
+      const availGone = (await api.stockBySerial(T2)) === null
+      report.step(S, 'proc-guard/unconfirmed',
+        created.isSuccess === true && pid > 0 && blocked.isSuccess === false
+        && locked?.qty === t2.qty && locked?.qty_available === 0 && availGone,
+        `建单=${created.isSuccess} 跳过确认直接过账被拒=${blocked.isSuccess === false} msg=${blocked.errorMessage || '-'} qty未变=${locked?.qty} 可用量=${locked?.qty_available}(占用) 已退出可用池=${availGone}`)
+      if (pid > 0) await api.req('DELETE', `/stockprocess?id=${pid}`) // 自清洁：未确认单可删
+    }
   }
 
   // ============ 5. 自清洁：盘点清零 T1/T2/T3（API 走与 UI 相同的三步接口） ============

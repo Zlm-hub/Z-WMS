@@ -645,4 +645,7 @@
   <data name="username_existed" xml:space="preserve">
     <value>User name already exists</value>
   </data>
+  <data name="stockprocess_not_confirmed" xml:space="preserve">
+    <value>The processing order has not been confirmed yet and cannot be posted</value>
+  </data>
 </root>

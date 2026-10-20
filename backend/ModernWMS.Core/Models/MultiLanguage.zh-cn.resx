@@ -645,4 +645,7 @@
   <data name="username_existed" xml:space="preserve">
     <value>用户名已存在</value>
   </data>
+  <data name="stockprocess_not_confirmed" xml:space="preserve">
+    <value>该加工单尚未确认加工，不能过账</value>
+  </data>
 </root>

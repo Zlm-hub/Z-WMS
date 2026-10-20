@@ -101,7 +101,7 @@ async function openCreate() {
   // 打开弹窗时重拉来源库存：移库确认后库存行的库位即时变化，
   // onMounted 的一次性快照会让连续移库（A→B→A）的移出库位指向旧位置
   try {
-    const rows2 = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
+    const rows2 = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
     stockMap.value = {}
     stockOptions.value = []
     for (const s of rows2) {
@@ -174,7 +174,7 @@ function confirmIt(row: any) {
 onMounted(async () => {
   try {
     // 来源库存：/stock/select 带完整库存身份（含 goods_owner_id/series_number/expiry_date 等）
-    const rows = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
+    const rows = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
     for (const s of rows) {
       stockMap.value[s.id] = s
       stockOptions.value.push({

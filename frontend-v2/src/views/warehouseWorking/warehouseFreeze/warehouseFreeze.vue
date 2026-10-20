@@ -100,8 +100,8 @@ async function openCreate(jobType: boolean) {
   // onMounted 的一次性快照会让「冻结完立刻解冻」选不到目标库存
   try {
     const [avail, frozen] = await Promise.all([
-      http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' }),
-      http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: 'frozen', searchValue: '' })
+      http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' }),
+      http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: 'frozen', searchValue: '' })
     ])
     availStocks.value = (avail.data?.data?.rows as any[]) || []
     frozenStocks.value = (frozen.data?.data?.rows as any[]) || []
@@ -144,8 +144,8 @@ onMounted(async () => {
     // /stock/select 返回带完整库存身份的行（含 goods_owner_id/is_freeze/series_number）
     // 两类查询：默认 sqlTitle 过滤 qty_available>0（可冻结的）；sqlTitle=frozen 拿已冻结的（解冻用）
     const [avail, frozen] = await Promise.all([
-      http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' }),
-      http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: 'frozen', searchValue: '' })
+      http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' }),
+      http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: 'frozen', searchValue: '' })
     ])
     availStocks.value = (avail.data?.data?.rows as any[]) || []
     frozenStocks.value = (frozen.data?.data?.rows as any[]) || []
