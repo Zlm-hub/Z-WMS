@@ -44,12 +44,13 @@ class Api {
   }
   /** /stock/select 可用库存池（sqlTitle='' 过滤 qty_available>0） */
   async stockAvail() {
-    const d = await this.req('POST', '/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })
+    // pageSize 2000：真实库（实测 600+ 条）超过 500 时目标行会掉出第一页，stockBySerial 会误判为不存在
+    const d = await this.req('POST', '/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' })
     return d.data?.rows || []
   }
   /** /stock/select 已冻结池 */
   async stockFrozen() {
-    const d = await this.req('POST', '/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: 'frozen', searchValue: '' })
+    const d = await this.req('POST', '/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: 'frozen', searchValue: '' })
     return d.data?.rows || []
   }
   /** 按序列号在两个池中找库存行 */

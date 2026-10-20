@@ -26,6 +26,7 @@
       <n-button dashed block @click="addDetail">+ 添加明细</n-button>
       <n-alert type="info" style="margin-top: 12px">
         原料行过账时扣减库存，成品行过账时增加库存；确认加工仅标记状态，确认调整才会过账库存。
+        原料数量默认取该行可用量（可改小），成品数量默认 1，按实际产出填。
       </n-alert>
     </n-form>
     <template #footer>
@@ -35,11 +36,33 @@
       </n-space>
     </template>
   </n-modal>
+
+  <n-modal v-model:show="showDetail" title="加工单明细" preset="card" style="width: 820px">
+    <n-spin :show="detailLoading">
+      <n-descriptions :column="2" size="small" label-placement="left" bordered>
+        <n-descriptions-item label="作业单号">{{ detail.job_code || '-' }}</n-descriptions-item>
+        <n-descriptions-item label="作业类型">{{ detail.job_type ? '组合加工' : '拆分加工' }}</n-descriptions-item>
+        <n-descriptions-item label="加工状态">{{ detail.process_status ? '已加工' : '待加工' }}</n-descriptions-item>
+        <n-descriptions-item label="是否已调整">{{ detail.adjust_status ? '已调整' : '未调整' }}</n-descriptions-item>
+        <n-descriptions-item label="操作人">{{ detail.processor || '-' }}</n-descriptions-item>
+        <n-descriptions-item label="创建人">{{ detail.creator || '-' }}</n-descriptions-item>
+      </n-descriptions>
+      <n-divider title-placement="left">原料（过账扣减）</n-divider>
+      <n-data-table :columns="readonlyDetailCols" :data="detail.source_detail_list || []" size="small" :bordered="false" />
+      <n-divider title-placement="left">成品（过账增加）</n-divider>
+      <n-data-table :columns="readonlyDetailCols" :data="detail.target_detail_list || []" size="small" :bordered="false" />
+    </n-spin>
+    <template #footer>
+      <n-space justify="end">
+        <n-button @click="showDetail = false">关闭</n-button>
+      </n-space>
+    </template>
+  </n-modal>
 </template>
 
 <script setup lang="ts">
 import { h, onMounted, reactive, ref } from 'vue'
-import { NAlert, NButton, NDataTable, NForm, NFormItem, NInputNumber, NModal, NRadio, NRadioGroup, NSpace, NSelect, NTag, createDiscreteApi, type DataTableColumns } from 'naive-ui'
+import { NAlert, NButton, NDataTable, NDescriptions, NDescriptionsItem, NDivider, NForm, NFormItem, NInputNumber, NModal, NRadio, NRadioGroup, NSpace, NSelect, NSpin, NTag, createDiscreteApi, type DataTableColumns } from 'naive-ui'
 import QueryTable from '@/components/QueryTable.vue'
 import { stockprocessApi } from '@/api'
 import http from '@/api/http'
@@ -48,6 +71,9 @@ const { message, dialog } = createDiscreteApi(['message', 'dialog'])
 const tableRef = ref<InstanceType<typeof QueryTable> | null>(null)
 const showModal = ref(false)
 const saving = ref(false)
+const showDetail = ref(false)
+const detailLoading = ref(false)
+const detail = ref<Record<string, any>>({})
 const stockOptions = ref<Array<{ label: string; value: number }>>([])
 const stockMap = ref<Record<number, any>>({})
 let detailKeySeq = 0
@@ -82,18 +108,30 @@ const columns = [
   { title: '创建人', key: 'creator' },
   { title: '创建时间', key: 'create_time', width: 160 },
   {
-    title: '操作', key: '__act', width: 170, fixed: 'right',
+    title: '操作', key: '__act', width: 250, fixed: 'right',
     render(row: any) {
-      const btns: any[] = []
+      // 列表页只回主表字段，明细要单独查 GET /stockprocess?id=
+      const btns: any[] = [
+        h(NButton, { size: 'small', quaternary: true, onClick: () => openDetail(row) }, { default: () => '查看明细' })
+      ]
       if (!row.process_status) {
         btns.push(h(NButton, { size: 'small', quaternary: true, type: 'primary', onClick: () => confirmProcess(row) }, { default: () => '确认加工' }))
       }
       if (row.process_status && !row.adjust_status) {
         btns.push(h(NButton, { size: 'small', quaternary: true, type: 'warning', onClick: () => confirmAdjust(row) }, { default: () => '确认调整过账' }))
       }
-      return btns.length ? h(NSpace, { size: 4 }, { default: () => btns }) : null
+      return h(NSpace, { size: 4 }, { default: () => btns })
     }
   }
+]
+
+// 明细只读表（查看弹窗用）：原料/成品列表共用同一套列
+const readonlyDetailCols: DataTableColumns = [
+  { title: '商品', key: 'spu_name', minWidth: 180 },
+  { title: '规格', key: 'sku_name', width: 180, render: (r: any) => r.sku_name || r.sku_code || '-' },
+  { title: '库位', key: 'location_name', width: 110, render: (r: any) => r.location_name || '-' },
+  { title: '序列号', key: 'series_number', width: 140, render: (r: any) => r.series_number || '-' },
+  { title: '数量', key: 'qty', width: 100, render: (r: any) => `${r.qty}${r.unit ? ' ' + r.unit : ''}` }
 ]
 
 const detailCols: DataTableColumns = [
@@ -118,7 +156,7 @@ const detailCols: DataTableColumns = [
       h(NSelect, {
         value: row.is_source,
         options: [{ label: '原料（消耗）', value: true }, { label: '成品（产出）', value: false }],
-        'onUpdate:value': (v: boolean) => { row.is_source = v }
+        'onUpdate:value': (v: boolean) => { row.is_source = v; if (row.stock_id) applyStock(row) }
       })
   },
   {
@@ -129,7 +167,9 @@ const detailCols: DataTableColumns = [
       h(NInputNumber, {
         value: row.qty,
         min: 1,
-        max: row.qty_available ?? undefined,
+        // 只有原料受来源可用量约束；成品是产出，跟来源行余量无关
+        // Math.max(1, ...) 防止可用量为 0 时出现 max<min 的非法输入框
+        max: row.is_source ? Math.max(1, Number(row.qty_available ?? 1)) : undefined,
         'onUpdate:value': (v: number) => { row.qty = v }
       })
   },
@@ -153,7 +193,9 @@ function applyStock(row: any) {
   row.price = s.price
   row.putaway_date = s.putaway_date
   row.qty_available = s.qty_available
-  row.qty = s.qty_available ?? 1
+  // 原料默认取满可用量（用户可改小）；成品是产出，默认 1 且不受来源行可用量约束
+  // —— 旧实现两行都填 qty_available，成品行选到可用量为 0 的库存会卡死在 0
+  row.qty = row.is_source ? (Number(s.qty_available) > 0 ? Number(s.qty_available) : 1) : 1
 }
 
 function addDetail() {
@@ -169,7 +211,7 @@ async function openCreate() {
   form.detailList = [{ _key: ++detailKeySeq, stock_id: null, is_source: true, qty: 1 }, { _key: ++detailKeySeq, stock_id: null, is_source: false, qty: 1 }]
   // 打开弹窗时重拉库存：过账后 qty_available 即时变化，旧快照的数量上限会失真
   try {
-    const rows2 = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
+    const rows2 = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
     stockMap.value = {}
     stockOptions.value = []
     for (const s of rows2) {
@@ -226,6 +268,20 @@ async function save() {
   }
 }
 
+async function openDetail(row: any) {
+  showDetail.value = true
+  detailLoading.value = true
+  detail.value = { ...row }
+  try {
+    // 后端 GetAsync 返回 source_detail_list / target_detail_list，已带 spu/sku/库位名
+    detail.value = (await stockprocessApi.get(row.id)) || row
+  } catch (e) {
+    message.error(e instanceof Error ? e.message : '明细加载失败')
+  } finally {
+    detailLoading.value = false
+  }
+}
+
 function confirmProcess(row: any) {
   dialog.info({
     title: '确认加工',
@@ -263,7 +319,7 @@ function confirmAdjust(row: any) {
 onMounted(async () => {
   try {
     // /stock/select 返回带完整库存身份的行（含 goods_owner_id/series_number/expiry_date 等）
-    const rows = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
+    const rows = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
     for (const s of rows) {
       stockMap.value[s.id] = s
       stockOptions.value.push({

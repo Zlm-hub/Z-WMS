@@ -150,7 +150,7 @@ async function openCreate() {
   form.stock_id = null
   // 打开弹窗时重拉库存：盘点差异过账会即时改变 qty，旧快照的账面数量会失真
   try {
-    const rows2 = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
+    const rows2 = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
     stockMap.value = {}
     stockOptions.value = []
     for (const s of rows2) {
@@ -219,7 +219,7 @@ function confirmIt(row: any) {
 onMounted(async () => {
   try {
     // /stock/select 返回带完整库存身份的行（含 goods_owner_id/is_freeze/series_number）
-    const rows = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 500, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
+    const rows = ((await http.post('/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: '', searchValue: '' })).data?.data?.rows as any[]) || []
     for (const s of rows) {
       stockMap.value[s.id] = s
       stockOptions.value.push({

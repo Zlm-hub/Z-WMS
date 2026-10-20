@@ -160,6 +160,7 @@ namespace ModernWMS.WMS.Services
                                      tenant_id = spd.tenant_id,
                                      is_source = spd.is_source,
                                      sku_code = sku.sku_code,
+                                     sku_name = sku.sku_name,
                                      spu_code = spu.spu_code,
                                      spu_name = spu.spu_name,
                                      unit = sku.unit,
@@ -364,6 +365,12 @@ namespace ModernWMS.WMS.Services
             if (entity == null)
             {
                 return (false, _stringLocalizer["not_exists_entity"]);
+            }
+            // 未确认加工不得直接过账：UI 只对 process_status=true 的行显示「确认调整过账」，
+            // 但接口可被直接调用，这里必须由后端拦住，否则会跳过「确认加工」凭空动库存
+            if (!entity.process_status)
+            {
+                return (false, _stringLocalizer["stockprocess_not_confirmed"]);
             }
             var adjusted = await (from a in adjust_DBset
                                   join d in _dBContext.GetDbSet<StockprocessdetailEntity>().AsNoTracking() on a.source_table_id equals d.id

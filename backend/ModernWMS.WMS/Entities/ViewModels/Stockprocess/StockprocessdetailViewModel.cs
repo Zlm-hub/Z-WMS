@@ -98,6 +98,11 @@ namespace ModernWMS.WMS.Entities.ViewModels
         public string sku_code { get; set; } = string.Empty;
 
         /// <summary>
+        /// sku_name（明细查看用，上游该 VM 只有 sku_code，展示规格名需回查）
+        /// </summary>
+        public string sku_name { get; set; } = string.Empty;
+
+        /// <summary>
         /// unit
         /// </summary>
         public string unit { get; set; } = string.Empty;

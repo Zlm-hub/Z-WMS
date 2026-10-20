@@ -36,6 +36,15 @@ class Ui {
       const sel = [...root.querySelectorAll('.n-base-selection')][${JSON.stringify(idx) * 1}]
       if (!sel) return 'NO_SELECT'
       sel.click(); await sleep(500)
+      // 大数据量下 NSelect 虚拟滚动只渲染前若干项（真实库库存上千条时目标选项可能不在 DOM 里），
+      // 先往搜索框打字把候选收敛到目标再匹配；非 filterable 的下拉会忽略这次输入
+      const inp = sel.querySelector('input')
+      if (inp) {
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+        setter.call(inp, ${JSON.stringify(optSubstr)})
+        inp.dispatchEvent(new Event('input', { bubbles: true }))
+        await sleep(500)
+      }
       const opts = [...document.querySelectorAll('.n-base-select-option')].filter(o => o.offsetParent !== null)
       const o = opts.find(x => x.textContent.includes(${JSON.stringify(optSubstr)}))
       if (!o) { document.body.click(); return 'NO_OPTION:' + opts.map(x => x.textContent.slice(0, 16)).join('|') }
