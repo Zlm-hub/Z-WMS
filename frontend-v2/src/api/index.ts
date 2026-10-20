@@ -81,7 +81,8 @@ export const menuApi = {
   all: () => request<Array<Record<string, unknown>>>({ url: '/rolemenu/all', method: 'GET' }),
   authority: () => request<Record<string, unknown>>({ url: '/rolemenu/authority', method: 'GET' }),
   get: (userrole_id: number) => request<Record<string, unknown>>({ url: '/rolemenu', method: 'GET', params: { userrole_id } }),
-  save: (data: unknown) => request<unknown>({ url: '/rolemenu', method: 'POST', data })
+  save: (data: unknown) => request<unknown>({ url: '/rolemenu', method: 'POST', data }),
+  update: (data: unknown) => request<unknown>({ url: '/rolemenu', method: 'PUT', data })
 }
 
 // ---------- 商品 ----------

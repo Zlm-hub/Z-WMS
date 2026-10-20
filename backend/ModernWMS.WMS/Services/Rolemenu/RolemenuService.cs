@@ -226,6 +226,26 @@ namespace ModernWMS.WMS.Services
                                       .FirstOrDefaultAsync(t => t.role_name == role_name && t.tenant_id == tenant_id);
             return role == null ? 0 : role.id;
         }
+
+        /// <summary>
+        /// get role name by user role id
+        /// </summary>
+        /// <param name="userrole_id">user role id</param>
+        /// <param name="tenant_id">tenant id</param>
+        /// <returns></returns>
+        public async Task<string> GetRoleNameByIdAsync(int userrole_id, long tenant_id)
+        {
+            if (userrole_id <= 0)
+            {
+                return string.Empty;
+            }
+            var Userroles = _dBContext.GetDbSet<UserroleEntity>();
+            var name = await Userroles.AsNoTracking()
+                                      .Where(t => t.id == userrole_id && t.tenant_id == tenant_id)
+                                      .Select(t => t.role_name)
+                                      .FirstOrDefaultAsync();
+            return name ?? string.Empty;
+        }
         /// <summary>
         /// add a new record
         /// </summary>
@@ -271,49 +291,60 @@ namespace ModernWMS.WMS.Services
         public async Task<(bool flag, string msg)> UpdateAsync(RolemenuBothViewModel viewModel, CurrentUser currentUser)
         {
             var Rolemenus = _dBContext.GetDbSet<RolemenuEntity>();
-            if (!(await Rolemenus.AnyAsync(t => t.userrole_id.Equals(viewModel.userrole_id))))
-            {
-                return (false, _stringLocalizer["not_exists_entity"]);
-            }
-            var dbEntities = await Rolemenus.AsNoTracking().Where(t => t.userrole_id == viewModel.userrole_id).ToListAsync();
+            var dbEntities = await Rolemenus.Where(t => t.userrole_id == viewModel.userrole_id).ToListAsync();
 
-            var entities = (from vm in viewModel.detailList
-                            join db in dbEntities on new { id = Math.Abs(vm.id), vm.menu_id } equals new { db.id, db.menu_id } into dbJoin
-                            from db in dbJoin.DefaultIfEmpty()
-                            select new RolemenuEntity
-                            {
-                                id = vm.id,
-                                userrole_id = viewModel.userrole_id,
-                                menu_id = vm.menu_id,
-                                authority = vm.authority,
-                                menu_actions_authority = JsonHelper.SerializeObject(vm.menu_actions_authority),
-                                create_time = db == null ? DateTime.Now : db.create_time,
-                                last_update_time = DateTime.Now,
-                                tenant_id = currentUser.tenant_id
-                            }).ToList();
-            
-            if (entities.Any(t => t.id > 0))
+            // 以前这里按明细 id 关联，但前端整棵树勾选后提交的 id 恒为 0，
+            // 导致「取消勾选的菜单不会被删、已存在的会被重复插入」。
+            // 这里改为以 menu_id 为唯一键做全量对齐：进来的集合就是目标集合。
+            var incoming = (viewModel.detailList ?? new List<RolemenuViewModel>())
+                .Where(t => t.menu_id > 0)
+                .GroupBy(t => t.menu_id)
+                .Select(g => g.First())
+                .ToList();
+            var now = DateTime.Now;
+            var added = 0;
+            var updated = 0;
+            foreach (var vm in incoming)
             {
-                Rolemenus.UpdateRange(entities.Where(t => t.id > 0).ToList());
+                var db = dbEntities.FirstOrDefault(t => t.menu_id == vm.menu_id);
+                if (db == null)
+                {
+                    await Rolemenus.AddAsync(new RolemenuEntity
+                    {
+                        userrole_id = viewModel.userrole_id,
+                        menu_id = vm.menu_id,
+                        authority = vm.authority,
+                        menu_actions_authority = JsonHelper.SerializeObject(vm.menu_actions_authority ?? new List<string>()),
+                        create_time = now,
+                        last_update_time = now,
+                        tenant_id = currentUser.tenant_id
+                    });
+                    added++;
+                }
+                else
+                {
+                    db.authority = vm.authority;
+                    db.menu_actions_authority = JsonHelper.SerializeObject(vm.menu_actions_authority ?? new List<string>());
+                    db.last_update_time = now;
+                    updated++;
+                    // 命中过的从待删集合里摘掉，剩下就是本次被取消勾选的
+                    dbEntities.Remove(db);
+                }
             }
-            if (entities.Any(t => t.id == 0))
+            var removed = dbEntities.Count;
+            if (removed > 0)
             {
-                Rolemenus.AddRange(entities.Where(t => t.id == 0).ToList());
+                Rolemenus.RemoveRange(dbEntities);
             }
-            if (entities.Any(t => t.id < 0))
+            // 即使 added/updated/removed 全为 0（用户没改动就点了保存）也算成功，否则前端会误报失败
+            await _dBContext.SaveChangesAsync();
+            if (added + updated + removed > 0)
             {
-                var dels = entities.Where(t => t.id < 0).ToList();
-                dels.ForEach(t => t.id *= -1);
-                Rolemenus.RemoveRange(dels);
-            }
-            var qty = await _dBContext.SaveChangesAsync();
-            if (qty > 0)
-            {
-                return (true, _stringLocalizer["save_success"]);
+                return (true, string.Format("{0}（新增 {1} / 更新 {2} / 移除 {3}）", _stringLocalizer["save_success"], added, updated, removed));
             }
             else
             {
-                return (false, _stringLocalizer["save_failed"]);
+                return (true, _stringLocalizer["save_success"]);
             }
         }
         /// <summary>

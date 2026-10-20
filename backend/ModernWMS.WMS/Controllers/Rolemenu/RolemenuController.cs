@@ -76,6 +76,24 @@
             return menus.Any(m => m.menu_name == "roleMenu");
         }
         /// <summary>
+        /// 超级管理员角色名（其权限不可通过界面修改，避免把自己锁在系统外）
+        /// </summary>
+        private const string SUPER_ADMIN_ROLE_NAME = "admin";
+
+        /// <summary>
+        /// 目标角色是否为超级管理员角色
+        /// </summary>
+        private async Task<bool> IsSuperAdminRoleAsync(int userrole_id)
+        {
+            if (userrole_id <= 0)
+            {
+                return false;
+            }
+            var role_name = await _rolemenuService.GetRoleNameByIdAsync(userrole_id, CurrentUser.tenant_id);
+            return string.Equals((role_name ?? string.Empty).Trim(), SUPER_ADMIN_ROLE_NAME, StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// Get menu's authority by user role id
         /// </summary>
         /// <param name="userrole_id">user role id</param>
@@ -163,6 +181,10 @@
             {
                 return ResultModel<int>.Error("Sorry, you don't have the authority required!", 403, 0);
             }
+            if (await IsSuperAdminRoleAsync(viewModel.userrole_id))
+            {
+                return ResultModel<int>.Error("超级管理员(admin)角色的权限不可修改", 403, 0);
+            }
             var (id, msg) = await _rolemenuService.AddAsync(viewModel, CurrentUser);
             if (id > 0)
             {
@@ -186,6 +208,10 @@
             {
                 return ResultModel<bool>.Error("Sorry, you don't have the authority required!", 403, false);
             }
+            if (await IsSuperAdminRoleAsync(viewModel.userrole_id))
+            {
+                return ResultModel<bool>.Error("超级管理员(admin)角色的权限不可修改", 403, false);
+            }
             var (flag, msg) = await _rolemenuService.UpdateAsync(viewModel, CurrentUser);
             if (flag)
             {
@@ -208,6 +234,10 @@
             if (!await CanManageRoleMenuAsync())
             {
                 return ResultModel<string>.Error("Sorry, you don't have the authority required!", 403, string.Empty);
+            }
+            if (await IsSuperAdminRoleAsync(userrole_id))
+            {
+                return ResultModel<string>.Error("超级管理员(admin)角色的权限不可修改", 403, string.Empty);
             }
             var (flag, msg) = await _rolemenuService.DeleteAsync(userrole_id);
             if (flag)
