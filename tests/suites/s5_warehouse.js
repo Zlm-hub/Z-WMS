@@ -192,6 +192,68 @@ module.exports = async function run(ctx) {
     }
   }
 
+  // ============ 4c. 连续部分移库必须合并到同一目标行 ============
+  // 上游 Confirm 里目标行条件误写成 t.sku_id != entity.sku_id：合并永远命中不了，
+  // 每次确认都新建一行 → 同一批货被拆成多条重复库存行（下游按 7 键 FirstOrDefault 会误判库存不足），
+  // 极端情况下还会把数量加到「同库位同价格同入库日期的另一个 SKU」上。
+  {
+    const t3 = await api.stockBySerial(T3)
+    const locs = await api.locations()
+    const destLoc = t3 ? locs.find((l) => l.id !== t3.goods_location_id) : null
+    if (!t3 || !destLoc) {
+      report.step(S, 'move-merge/setup', false, '缺少 T3 库存行或第二库位')
+    } else {
+      const rawAll = async () => (await api.req('POST', '/stock/select', { pageIndex: 1, pageSize: 2000, sqlTitle: 'all', searchValue: '' })).data?.rows || []
+      const mkMove = (st, dest, qty) => ({
+        sku_id: st.sku_id, goods_owner_id: st.goods_owner_id,
+        series_number: st.series_number, expiry_date: st.expiry_date,
+        price: st.price, putaway_date: st.putaway_date,
+        orig_goods_location_id: st.goods_location_id,
+        orig_goods_warehouse: st.warehouse_name, orig_goods_location_name: st.location_name,
+        dest_googs_location_id: dest.id,
+        dest_googs_warehouse: dest.warehouse_name, dest_googs_location_name: dest.location_name,
+        qty,
+        spu_code: st.spu_code ?? '', spu_name: st.spu_name ?? '',
+        sku_code: st.sku_code ?? '', sku_name: st.sku_name ?? ''
+      })
+      const doMove = async (st, dest, qty, tag) => {
+        await api.call('POST', '/stockmove', mkMove(st, dest, qty), tag + '/create')
+        const row = (await api.list('stockmove')).data.rows.find((r) => r.move_status === 0)
+        if (!row) throw new Error(tag + ': 找不到待移库单')
+        await api.call('PUT', `/stockmove?id=${row.id}`, undefined, tag + '/confirm')
+      }
+
+      // 把 T3 账面拉到 5（建单 → 录实盘 5 → 差异过账），才有"部分移库"的可能
+      const createdTK = await api.call('POST', '/stocktaking', {
+        sku_id: t3.sku_id, goods_owner_id: t3.goods_owner_id, goods_location_id: t3.goods_location_id,
+        series_number: t3.series_number, expiry_date: t3.expiry_date, price: t3.price, putaway_date: t3.putaway_date,
+        book_qty: t3.qty,
+        warehouse_name: t3.warehouse_name, location_name: t3.location_name,
+        spu_code: t3.spu_code ?? '', spu_name: t3.spu_name ?? '', sku_code: t3.sku_code ?? '', sku_name: t3.sku_name ?? ''
+      }, 'move-merge/inflate-create')
+      const inflateId = typeof createdTK === 'number' && createdTK > 0
+        ? createdTK
+        : (await api.list('stocktaking')).data.rows.find((x) => x.series_number === T3).id
+      await api.call('PUT', '/stocktaking', { id: inflateId, counted_qty: 5 }, 'move-merge/inflate-count')
+      await api.call('PUT', `/stocktaking/adjustment-confirm?id=${inflateId}`, undefined, 'move-merge/inflate-post')
+
+      // 连续两次移 2 件到同一库位：正确实现应合并成「目标 1 行 qty=4」
+      const after5 = (await rawAll()).find((r) => r.series_number === T3) || t3
+      await doMove(after5, destLoc, 2, 'move-merge/first')
+      const afterFirst = (await rawAll()).find((r) => r.series_number === T3 && r.goods_location_id === after5.goods_location_id) || after5
+      await doMove(afterFirst, destLoc, 2, 'move-merge/second')
+
+      const destRows = (await rawAll()).filter((r) => r.series_number === T3 && r.goods_location_id === destLoc.id)
+      report.step(S, 'move-merge/partial',
+        destRows.length === 1 && destRows[0].qty === 4,
+        `目标库位 ${destLoc.location_name} 行数=${destRows.length}（应为 1）qty=${destRows.map((r) => r.qty).join('+')}（应为 4）`)
+
+      // 移回去，交给第 5 段盘点清零，避免残留
+      const back = (await rawAll()).find((r) => r.series_number === T3 && r.goods_location_id === destLoc.id)
+      if (back) await doMove(back, { ...destLoc, id: after5.goods_location_id, warehouse_name: after5.warehouse_name, location_name: after5.location_name }, back.qty, 'move-merge/restore')
+    }
+  }
+
   // ============ 5. 自清洁：盘点清零 T1/T2/T3（API 走与 UI 相同的三步接口） ============
   for (const sn of [T1, T2, T3]) {
     try {
