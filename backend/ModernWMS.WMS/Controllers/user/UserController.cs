@@ -67,6 +67,18 @@ namespace ModernWMS.WMS.Controllers
         }
 
         /// <summary>
+        /// 用户下拉项（真实用户列表，供「经手人/操作人」这类人员字段使用）
+        /// select-item 返回的是角色，人员字段不能用它
+        /// </summary>
+        /// <returns></returns>
+        [HttpGet("select-user-item")]
+        public async Task<ResultModel<List<FormSelectItem>>> GetUserSelectItemsAsync()
+        {
+            var datas = await _userService.GetUserSelectItemsAsync(CurrentUser);
+            return ResultModel<List<FormSelectItem>>.Success(datas);
+        }
+
+        /// <summary>
         /// page search
         /// </summary>
         /// <param name="pageSearch">args</param>

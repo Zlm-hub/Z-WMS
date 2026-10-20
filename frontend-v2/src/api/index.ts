@@ -60,7 +60,11 @@ export const authApi = {
 
 // ---------- 下拉数据 ----------
 export const selectApi = {
-  users: () => request<Array<{ id: number; user_name: string }>>({ url: '/user/select-item', method: 'GET' }),
+  // 注意：原 selectApi.users 指向 /user/select-item，但它返回的是「角色」，
+  // 曾导致「经手人」下拉列出角色名。已移除该入口，人员字段一律用 userItems。
+  /** 真实用户列表（人员类字段专用） */
+  userItems: () =>
+    request<Array<{ code: string; name: string; value: string; comments: string }>>({ url: '/user/select-user-item', method: 'GET' }),
   warehouses: () => request<Array<{ id: number; warehouse_name: string }>>({ url: '/warehouse/select-item', method: 'GET' }),
   areasByWarehouse: (warehouse_id: number) =>
     request<Array<{ id: number; warehouse_area_name: string }>>({ url: '/warehousearea/areas-by-warehouse_id', method: 'GET', params: { warehouse_id } }),

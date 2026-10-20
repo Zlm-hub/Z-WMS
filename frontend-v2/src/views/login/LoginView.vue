@@ -55,7 +55,7 @@ async function submit() {
   loading.value = true
   try {
     const data = await request<LoginOutput>({ url: '/login', method: 'POST', data: { ...form } })
-    auth.setLogin(data, { user_name: data.user_name, user_num: data.user_num, user_role: data.user_role, tenant_id: data.tenant_id })
+    auth.setLogin(data, { user_id: data.user_id, user_name: data.user_name, user_num: data.user_num, user_role: data.user_role, tenant_id: data.tenant_id })
     message.success('欢迎回来')
     router.push('/home')
   } catch (e) {
