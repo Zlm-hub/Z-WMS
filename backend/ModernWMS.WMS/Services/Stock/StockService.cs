@@ -552,6 +552,16 @@ namespace ModernWMS.WMS.Services
                 query = query.Where(t => t.is_freeze == true);
             }
             query = query.Where(queries.AsExpression<StockViewModel>());
+            // 关键词：商品名 / 规格名 / 序列号 / 库位 任一命中。
+            // 前端库存明细（按批次/序列号）的搜索框靠它生效；其他调用方传空串时行为不变
+            var select_keyword = (pageSearch.searchValue ?? string.Empty).Trim();
+            if (select_keyword.Length > 0)
+            {
+                query = query.Where(t => t.spu_name.Contains(select_keyword)
+                                      || t.sku_name.Contains(select_keyword)
+                                      || t.series_number.Contains(select_keyword)
+                                      || t.location_name.Contains(select_keyword));
+            }
             int totals = await query.CountAsync();
             var list = await query.OrderBy(t => t.sku_code)
                        .Skip((pageSearch.pageIndex - 1) * pageSearch.pageSize)

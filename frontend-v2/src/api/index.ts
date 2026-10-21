@@ -214,7 +214,9 @@ export const stockApi = {
   stockList: (b: PageSearch) => list<Record<string, unknown>>('/stock/stock-list', b),
   safetyList: (b: PageSearch) => list<Record<string, unknown>>('/stock/safety-list', b),
   locationList: (b: PageSearch) => list<Record<string, unknown>>('/stock/location-list', b),
-  stockAgeList: (b: PageSearch) => list<Record<string, unknown>>('/stock/stock-age-list', b)
+  stockAgeList: (b: PageSearch) => list<Record<string, unknown>>('/stock/stock-age-list', b),
+  // 逐行库存（每序列号/每批次一条），sqlTitle='all' 才包含 qty=0 与已冻结行
+  selectList: (b: PageSearch) => list<Record<string, unknown>>('/stock/select', b)
 }
 export const stockadjustApi = { list: (b: PageSearch) => list<Record<string, unknown>>('/stockadjust/list', b) }
 export const stockfreezeApi = {
